@@ -736,13 +736,108 @@ GitHub userid: Zhassulan1
 
 #### Specification review rounds
 
-(Table showing spec review rounds)
+Each round used Claude Opus 5.5 in Claude Code with the prompt shown under Last
+specification review. It reviewed the parts I changed: the three new hint
+sections, the precedence list, the "Plain `git-hints`" bullet, the
+Documentation links section, the inspection-environment test case, and the
+Development strategy introduction.
+
+| Round | Findings | Main changes made |
+| ----- | -------- | ----------------- |
+| 1     | 23       | `unpushed-branches` gained `--decorate` for Git before 2.35; a trace2 test now checks `GIT_OPTIONAL_LOCKS=0`; the maintenance script follows Asciidoctor's ID, include and title rules; 2 findings rejected because they contradicted existing hints, 1 left for the code |
+| 2     | 16       | `stash-entries` hidden during a bisect and `git stash pop` warned; single-branch clones and shell quoting handled in `unpushed-branches`; the script states its failure cases; 1 finding rejected because `fetch.writeFetchHead` does not exist in Git 2.56 |
+| 3     | 11       | One rule for reading the current branch name, applied to two existing hints; the `unpushed-branches` test covers detached HEAD, gone and diverged upstreams, a conflicted merge and a single-branch clone; `LC_ALL` checked by the trace2 test |
+| 4     | 16       | Inline title anchors added to the ID rule; table entries record their kind; `stale-fetch` hidden during operations like the other reminders; tests for a stopped rebase, a bisect and a tag named like the branch |
+| 5     | 12       | The script's title rules accept the document-title underline and close a block only at a matching delimiter; the existing whole-page links are chosen again in this phase; list separators and code spans for stash messages; the stale-fetch test setup is explicit |
 
 #### Last specification review
 
-(LLM and prompt used)
+Prompting Claude Opus 5.5 in Claude Code with the following prompt produced the
+round 5 output below; strikethrough indicates findings that I deemed incorrect
+or irrelevant. Local paths are replaced by `<repo>` (the repository),
+`<git-source>` (the Git source clone) and `<scratch>` (a scratch directory).
 
-(LLM output, possibly with strikethrough)
+```text
+Review only these parts of spec.md in <repo>: the hint sections "Keep track of stash entries?", "Push your other local branches?", and "Fetch to see the newest remote commits?"; the precedence list in Hint structure, item 5; the "Plain `git-hints`" bullet in "Language and libraries"; the "Documentation links" section; the paragraph in "Testing" that begins "Inspection must keep working"; and the introduction of "Development strategy", up to the "Implementation Strategy" heading. Check for technical inaccuracies, contradictions with the rest of spec.md or with the code in src/git_hints/, missing decisions, and ambiguous or untestable statements. Avoid stylistic suggestions. A clone of the Git source is at <git-source> (tag v2.56.0), and you may create scratch repositories under <scratch> to check Git's behavior. Do not modify any file in the repository. Report the findings as a numbered list, each with the location, the problem, and why it matters, followed by the total number of findings.
+```
+
+I found 12 problems in the requested parts of `<repo>/spec.md`. The most serious is the maintenance script's parsing rule (finding 1), which as written cannot find the anchors of any man page.
+
+I checked Git's behaviour with Git 2.56.0 in scratch repositories under `<scratch>`, and against the source at v2.56.0 and origin/master. No repository file was modified.
+
+These checks passed, so they are not findings:
+- **Stash commands:** `git stash list` exits 0 with no output when there is no stash. `git stash show -p --include-untracked 0`, `git stash apply`, `drop` and `pop` behave as the section says.
+- **Unpushed-branches commands:** `%D` filtering, the empty lines from root and merge commits, the `for-each-ref` fields (`.`, `[gone]`, the single-branch clone case) and the "before Git 2.35" claim are all correct. The `git log` command exits 0 on an unborn branch. A tag with the same name as the branch makes `git push` fail with "src refspec matches more than one".
+- **`FETCH_HEAD`:** a failed fetch empties it, because `do_fetch()` truncates the file before contacting the remote. A fetch from an empty remote leaves it empty too. Clone and push don't write it, and each worktree has its own.
+- **Plain `git-hints` bullet:** `LC_ALL=C` overrides `LANGUAGE`, and `git diff`'s index refresh ignores `GIT_OPTIONAL_LOCKS`.
+- **Anchors:** `[[DETACHED_HEAD]]` and `gitmergeconflicts#markers` exist on master and in no released tag. `_configuration_2` in git-tag and the anchor examples are correct.
+- **Precedence list:** adding `stash-entries` is needed for stale-fetch test step 9, because "stale-fetch" sorts before "stash-entries" by code point.
+
+**Findings**
+
+1. **Maintenance script, item 1 (lines 2559–2564): the parsing rules misread every man page.**
+   - Line 2 of each page is the document-title underline (`git-stash(1)` / `============`). The rules accept only `-`, `~` and `^` as underlines, but count any line of four or more `=` as a block delimiter. So this underline opens an "example block" that never closes on git-stash, git-push, git-fetch, git-pull or git-checkout. No title is collected, every section anchor prints `missing`, and the script exits 1.
+   - The rules also don't say a block closes only on a line identical to its opening delimiter. git-merge.adoc (lines 255, 285, 304) and master's gitmergeconflicts.adoc (line 69) have `=======` conflict-marker lines inside `----` listing blocks. These are the pages of the two anchors expected to move.
+   - Minor: Asciidoctor also has `+` underlines (level 4) and `======` titles, which the rules leave out.
+
+2. **Bisect suppression contradicts Hint structure, item 7 (lines 236–237 vs 1602–1609, 1677–1683, 1806–1810).**
+   - Item 7 says a healthy bisect should "suppress *only* incompatible suggestions".
+   - `stash-entries` hides even the read-only `git stash show`, and `unpushed-branches` and `stale-fetch` hide `git push` and `git fetch --all`, which work during a bisect. The phrase "beyond what item 7 requires" does not resolve the conflict with "only".
+   - The unpushed-branches reason, "During a … bisect HEAD is detached", is also not always true. After `git bisect start` with no revisions, as used in stash test step 7 and stale-fetch test step 9, `git branch --show-current` still prints `main`. The same applies to `--no-checkout`.
+
+3. **Documentation links (lines 2482–2489, 2500–2501, checks 2 and 4 at 2526–2535): no decision on the existing whole-page links.**
+   - The hint sections still have 14 whole-page links: git-add, git-branch, git-cherry-pick, git-clone, git-commit, git-diff, git-merge, git-pull, git-push, git-rebase, git-revert, git-rm, git-switch and gitignore. The git-init and git-bisect links that Specification gaps adds are also whole pages.
+   - The rule allows a whole-page link "only when neither works", and check 4 requires a reason. Each of these pages has a usable section (e.g. DESCRIPTION), so no true reason exists. Check 2 requires the table to match the spec exactly.
+   - The implementer must therefore either invent reasons or depart from the spec. Nothing says whether this phase re-chooses these links, along with the test-case code spans such as `https://git-scm.com/docs/git-merge` that check 2 also compares.
+
+4. **unpushed-branches, Related output (lines 1727–1728) vs conditions 5.1 and 5.3: "push-ahead, no-upstream-branch, and diverged cover it" is wrong.**
+   - In two cases `git rev-parse --abbrev-ref --symbolic-full-name @{upstream}` exits 128 on the current branch (verified): a `[gone]` upstream, and an upstream that maps to no remote-tracking branch (single-branch clone).
+   - `no-upstream-branch` (lines 640–645, `proactive.py` 552–560) then suggests `git push -u origin <branch>`. That recreates the deleted remote branch, or never makes the hint go away.
+   - These are exactly the pushes 5.1 and 5.3 avoid for other branches. The same branch is handled in opposite ways depending on whether it is checked out.
+   - A current branch whose local upstream is behind it is covered by none of the three hints.
+
+5. **Testing, item 2 (lines 2703–2710): the test cannot fail for the reason it is there.**
+   - While an empty `index.lock` exists, plain `git status` (without `GIT_OPTIONAL_LOCKS`), `git diff --quiet` and `git diff --cached --quiet` all exit 0. Their stderr is empty and they leave the lock alone (verified; `refresh_index_quietly()` in `builtin/diff.c` 237–250, and `cmd_status` uses `repo_hold_locked_index(..., 0)`).
+   - So it passes with or without `GIT_OPTIONAL_LOCKS=0`. It also doesn't cover the real risk: inspection's refresh briefly holding the lock, so that the user's own `git commit` fails.
+   - "Change the modification time" gives no amount. A sub-second change may not count, because Git compares nanoseconds only when built with the opt-in `USE_NSEC`. The test would then be vacuous.
+
+6. **List formatting is underspecified (stash lines 1570–1580 and 1613–1614; unpushed lines 1650–1656 and 1724–1725).**
+   - For the stash list, it doesn't say whether the `; `-joined list is one code span or one per entry, or where "and N more" goes and with what separator.
+   - For unpushed-branches, no separator between branches is given, and it doesn't say whether `<n>` counts all reported branches or only the five listed. No test checks the `<n>` wording.
+   - Stash messages are arbitrary user text. If they are not code-spanned, `to_terminal` in `hint.py` would render a message such as `[x](url "t")` as a numbered link.
+
+7. **Scope of the `--short` ban (lines 2386–2389 vs detached-head step 1 at line 997, `git.py` 297–304).**
+   - The ban applies only to commands that need the branch name, but detached-head step 1 still prescribes `git symbolic-ref --quiet --short HEAD`.
+   - In the code, one memoized `Repo.current_branch` serves both the detached-HEAD test and the name users (`push_ahead`, `no_upstream_branch`, `changes_on_default_branch`, `fetch`). Fixing it will leave detached-head's text out of step with the code.
+   - The spec should say whether step 1 is rewritten to `git symbolic-ref --quiet HEAD`.
+
+~~8. **`git.py` comment contradicts the spec (`git.py` lines 80–82 vs spec lines 2390–2394).** The comment says `GIT_OPTIONAL_LOCKS=0` means "inspection never contends for `index.lock`". The spec, and Git, say `git diff`'s refresh still takes the lock. Since the spec is the source of truth, the comment is wrong.~~
+
+9. **Anchor rule 1 example is attached to the wrong case (lines 2461–2466).**
+   - UPSTREAM BRANCHES has its anchor on a separate line (`urls-remotes.adoc` 95–97), not inline. Placed after the inline-anchor sentence, the example implies the section also has `_upstream_branches`, which Asciidoctor does not generate when an anchor line is given.
+   - `urls-remotes.adoc` is also included in git-fetch (`git-fetch.adoc` line 55), not only in git-pull and git-push.
+
+10. **CodeChat markup (lines 2599–2613) assumes every hint function has its own comment.**
+    - Many have none, such as `behind`, `push_ahead`, `no_commits`, `staged_changes` and `unstaged_changes`. Others follow a comment shared by several hints (the "Upstream" comment before `diverged`) or other code (`OPERATION_SUMMARIES` before `operation_in_progress`).
+    - The spec doesn't say how IDs are obtained: the editor replaces `id="*"` with `cc-` plus 10 characters, per its cache-spec.md.
+    - Gather headings need IDs that exist only after the code is written, which conflicts with "the specification is changed first".
+
+11. **The lists of hints carrying "as of last fetch" are incomplete (CLI commands, item 1.3, lines 42–50; stale-fetch Related output, lines 1832–1833).** Both name only `push-ahead`, `behind` and `diverged`. `unpushed-branches` is always labeled (lines 1656–1658), even after a successful `--fetch`, so it doesn't follow the code's `as_of_last_fetch=not ctx.fetched` pattern for the other three. Neither list says so.
+
+12. **Ambiguities in the stale-fetch test (lines 1842–1845 and 1865–1868).**
+    - "The setup commands of step 1 of the unpushed-branches test case" doesn't say whether `config_user` (needed to commit) and that step's own `make_temps(..., 3)` call with different names are included.
+    - Step 8 runs `git-hints` in `wt`, which no `make_repo()` call created. That breaks the cwd rule in Testing (lines 2676–2678) without declaring an exception, as the detached-head test does.
+
+Total: 12 findings.
+
+Decisions: I accepted findings 1, 3, 6, 7, 9, 10, 11 and 12. I accepted 2 in
+part: the reason given for a bisect is corrected, and hiding the three reminders
+during an operation stays a recorded decision. I accepted 4 in part: the Related
+output no longer claims full coverage, and the behavior of `no-upstream-branch`
+itself is outside the parts I changed. I accepted 5 in part: the test now moves
+the modification time back by one hour; its purpose is to show that inspection
+keeps working while the lock is held, and step 1 checks the variable. Finding 8
+concerns a code comment, which is fixed in the implementation.
 
 #### Implementation review rounds
 
