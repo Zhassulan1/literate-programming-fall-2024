@@ -65,8 +65,15 @@ CLI commands
      `Git exited with code <n>.` before any reactive hint blocks on standard
      output. When Git exits successfully, print `No error detected.` instead of
      a reactive hint. On a nonzero exit, print all triggered reactive hints
-     using the `ID: <id>` block format below; the proactive three-hint limit
-     does not apply. No branch context line is printed for `explain`.
+     using the `ID: <id>` block format below, or `No hints.` when none
+     triggers; the proactive three-hint limit does not apply. No branch context
+     line is printed for `explain`.
+
+   * Match reactive hints against captured standard error and repository state
+     only. Git prints conflict messages such as `CONFLICT (content): Merge
+     conflict in <file>` and `Automatic merge failed; ...` on standard output,
+     which `explain` does not capture, so conflicts are detected from
+     repository state (see `merge-conflicts`), never from Git's messages.
 
    * Under `--ids-only`, standard output contains only triggered reactive hint
      IDs, one per line, and no exit-code message. Captured standard error
@@ -234,7 +241,10 @@ Hint structure
    must be available as a proactive as well as reactive hint, and staged changes
    must not cause an unconditional suggestion to commit while the index contains
    unresolved conflicts. An ongoing but healthy bisect is not necessarily an
-   error: explain the state and suppress only incompatible suggestions.
+   error: explain the state with `bisect-in-progress` and suppress only
+   incompatible suggestions. A bisect is in progress exactly when the
+   `BISECT_START` path exists, because that is what Git's bisect commands check;
+   a leftover `BISECT_LOG` alone does not count.
 
 8. **IDs and output blocks**: each hint must have a unique, permanent lowercase
    ASCII kebab-case ID matching `[a-z][a-z0-9]*(-[a-z0-9]+)*`, shared across
@@ -393,12 +403,16 @@ The Conditions of the hints below assume this check and do not repeat it.
 
 * Hint: Would you like to clone a
   [repository](https://git-scm.com/docs/git-clone "Clone a repository into a new directory")?
+  To start a new project instead,
+  [initialize](https://git-scm.com/docs/git-init "Create an empty Git repository")
+  one.
 
 * Git stage: You are not inside a Git repository; you need to either clone or
   initialize a repository before you can begin tracking files.
 
 * Command: `git clone <repository-url>`; afterward, Git creates a local copy of
-  the specified repository.
+  the specified repository. Or `git init`; afterward, Git creates an empty
+  repository in the current directory.
 
 * ID: `not-a-repo`, priority class: informational, safety: safe.
 
@@ -418,7 +432,8 @@ The Conditions of the hints below assume this check and do not repeat it.
      verify exit code 128.
   3. Run `git-hints --all --ids-only`. Verify that `not-a-repo` appears. Run
      `git-hints --all` and verify that the hint suggests `git clone
-     <repository-url>`, links to the official Git documentation, and that
+     <repository-url>` and `git init`, links to the official Git documentation,
+     and that
      `git-hints` exits normally.
   4. Run `git init -b main`, then `git-hints --all --ids-only` again. Verify
      that `not-a-repo` is absent.
@@ -536,7 +551,10 @@ The Conditions of the hints below assume this check and do not repeat it.
   upstream. The hint applies when `<behind>` is above 0 and `<ahead>` is 0. If
   the branch is also ahead, the `diverged` hint applies instead. These counts
   use the last-fetched remote-tracking branch, so label the hint "as of last
-  fetch" (see `git-hints --fetch`).
+  fetch" (see `git-hints --fetch`). Do not display this hint while a merge,
+  rebase, cherry-pick, or revert is in progress (Hint structure, item 7) or
+  while the index has unresolved entries, because `git pull` refuses to run
+  then.
 
 * Test case:
 
@@ -596,9 +614,10 @@ The Conditions of the hints below assume this check and do not repeat it.
   branch.ab +<ahead> -<behind>`; the hint applies when both numbers are above 0.
   When it applies, do not show the `behind` or `push-ahead` hints, because this
   hint replaces them. Label the hint "as of last fetch" (see `git-hints
-  --fetch`). Do not display this hint while a merge is in progress (`git
-  rev-parse -q --verify MERGE_HEAD` exits 0) or while the index has unresolved
-  entries (`git diff --name-only --diff-filter=U` returns paths).
+  --fetch`). Do not display this hint while a merge, rebase, cherry-pick, or
+  revert is in progress (Hint structure, item 7) or while the index has
+  unresolved entries (`git diff --name-only --diff-filter=U` returns paths),
+  because `git pull` refuses to run then.
 
 * Test case:
 
@@ -735,13 +754,31 @@ The Conditions of the hints below assume this check and do not repeat it.
   override should be corrected locally. These settings identify commit authors;
   they do not sign the user into GitHub.
 
-* ID: `commit-identity`, safety: safe.
+* ID: `commit-identity`, priority class: workflow, safety: safe.
 
 * Conditions: Check the effective Git configuration by running `git config --get
   user.name` and `git config --get user.email`. An exit code of 1 or an empty
   returned value means that setting is missing; other nonzero exit codes are
   inspection errors and must not trigger this hint. Trigger the hint when either
   setting is missing or empty.
+
+* Test case:
+
+  1. Create one temporary directory with `make_temps(tmp_path_factory, 1)`. Do
+     not call `config_user()`, so neither `user.name` nor `user.email` is set.
+  2. Run `git init -b main` in it.
+  3. Run `git-hints --all`. Verify that `commit-identity` appears, suggests
+     `git config --global user.name "Your Name"` and `git config --global
+     user.email "you@example.com"`, and links to the `git-config`
+     documentation.
+  4. Run `git config --global user.name "user1"`, then `git-hints --all`.
+     Verify that `commit-identity` still appears and suggests only the
+     `user.email` command.
+  5. Run `git config --global user.email "user1@example.com"`, then `git-hints
+     --all --ids-only`. Verify that `commit-identity` is absent.
+  6. Run `git config --local user.email ""`, then `git-hints --all`. Verify
+     that `commit-identity` appears and suggests `git config --local
+     user.email "you@example.com"`.
 
 ### Stage or ignore untracked files
 
@@ -1076,7 +1113,8 @@ The Conditions of the hints below assume this check and do not repeat it.
   10. During the bisect, run `git-hints --all` and require exit code 0 and the
       first output line exactly equal to `Branch: detached HEAD`. Run `git-hints
       --all --ids-only`; verify that `detached-head` and `no-upstream-branch`
-      are absent. Create an empty directory `sub` inside `local`, then run
+      are absent and `bisect-in-progress` is present. Create an empty directory
+      `sub` inside `local`, then run
       `git-hints --all --ids-only` with `cwd` set to `local/sub`, as an
       exception to the `cwd` rule in Testing, and verify that `detached-head` is
       still absent. This catches operation-state paths resolved against the
@@ -1102,7 +1140,36 @@ The Conditions of the hints below assume this check and do not repeat it.
   14. Precondition after cleanup: `git symbolic-ref --quiet --short HEAD` exits
       0 and prints `saved-work`; neither rebase-state path exists. Run `git
       switch --detach HEAD`, then `git-hints --all --ids-only` and verify that
-      `detached-head` appears again. Finish with `git switch saved-work`.
+      `detached-head` appears again.
+  15. Create an empty file at the path returned by `git rev-parse --git-path
+      BISECT_LOG`. Run `git-hints --all --ids-only`; verify that `detached-head`
+      is present and `bisect-in-progress` is absent. Delete the file.
+  16. Create an empty file at the `BISECT_START` path. Run `git-hints --all
+      --ids-only`; verify that `detached-head` is absent and
+      `bisect-in-progress` is present. Delete the file in cleanup even if an
+      assertion fails, then finish with `git switch saved-work`.
+
+### Bisect in progress
+
+* Hint: A
+  [bisect](https://git-scm.com/docs/git-bisect "Use binary search to find the commit that introduced a bug")
+  is in progress. Git checks out commits for you to test, so HEAD stays
+  detached until the bisect ends.
+
+* Git stage: You are working in the local repository at a commit Git chose for
+  testing, rather than on a branch.
+
+* Command: After testing this commit, `git bisect good` or `git bisect bad`;
+  afterward, Git checks out the next commit to test, or names the first bad
+  commit. To stop, `git bisect reset`; afterward, Git ends the bisect and
+  returns to the branch where it started.
+
+* ID: `bisect-in-progress`, priority class: informational, safety: safe.
+
+* Conditions: Display this hint when the `BISECT_START` path obtained as in
+  `detached-head`, Conditions step 4, exists (Hint structure, item 7).
+
+* Test case: `detached-head`, steps 9–10, 15, and 16.
 
 ### Current branch has no commits yet
 
@@ -1515,7 +1582,9 @@ The Conditions of the hints below assume this check and do not repeat it.
 
   A file added deliberately with `git add -f` also matches, so keep the wording
   conditional. A file re-included with a negation pattern such as `!debug.log`
-  is not ignored and must not appear.
+  is not ignored and must not appear. Do not display this hint while the index
+  has unresolved entries (`git diff --name-only --diff-filter=U` returns
+  paths), because its commit step would fail.
 
 * Related output: `untracked-files` covers files Git is not tracking; this hint
   covers files Git is tracking. The two must never report the same file. After
@@ -1938,7 +2007,9 @@ solely to check its hints.
      `repo2`, replace it with `local change` and commit it. Run `git-hints --all
      --ids-only`; verify `merge-conflicts` is absent.
   4. In `repo2`, run `git-hints explain -- git pull --no-rebase`. Require exit
-     code 1 and verify that `foo.txt` has unmerged index entries.
+     code 1, verify that `foo.txt` has unmerged index entries, and verify that
+     the standard error of `git-hints` contains no `CONFLICT` line, since Git
+     prints that message on standard output.
   5. Verify that the `merge-conflicts` output block has `error/blocked`
      priority, names `foo.txt`, contains `git status` and `git add`, and
      includes the official merge documentation URL.
@@ -2546,7 +2617,7 @@ from the repository root, without using the network, and check that:
 
 Check 2 can pass only when every link the code shows is in a hint section of
 this specification, including the `git-init` link of `not-a-repo` and the
-`git-bisect` link of `bisect-in-progress`, which Specification gaps adds. Hint
+`git-bisect` link of `bisect-in-progress`. Hint
 tests keep checking links through `git-hints --all`, as Testing requires.
 
 ### Maintenance script
@@ -2746,11 +2817,11 @@ specification it concerns, and the code follows the specification:
   inspection commands and reads the current branch's name without `git
   symbolic-ref --short`, and Testing has the test case for both.
 
-The two subsections below, Implementation Strategy and Specification gaps, are
-being merged into the parts of the specification they concern in the same way.
-Until then, a decision recorded in them applies where it differs from those
-parts; their descriptions of the existing code, such as its module map and test
-count, do not limit the changes listed above.
+The subsection below, Implementation Strategy, is being merged into the parts
+of the specification it concerns in the same way. Until then, a decision
+recorded in it applies where it differs from those parts; its descriptions of
+the existing code, such as its module map and test count, do not limit the
+changes listed above.
 
 All changes follow these rules:
 
@@ -2915,89 +2986,3 @@ each change there comes with its own tests.
    current as the other subsections add modules, such as the documentation
    table in `src/git_hints/docs.py`, and output.
 2. Run the full test suite, Ruff, and ty.
-
-Specification gaps
-------------------
-
-These are places where the specification is incomplete or disagrees with Git's
-actual behavior. Each was checked by running Git and against Git's source on its
-development branch.
-
-### `commit-identity` has no priority class or test case
-
-Hint structure, item 5, requires every hint to have exactly one priority class,
-and every other hint has a test case. `commit-identity` has neither. Without
-these settings, Git guesses an identity from the user and host names; `git
-commit` fails only when the guess is empty or rejected, or when
-`user.useConfigOnly` is set. The hint's purpose is to prevent commits under a
-guessed identity. This does not stop an operation in progress, so its class
-should be `workflow`, the class the implementation already uses. Its
-test case follows `test_commit_identity` in `tests/test_state.py`: both settings
-are suggested when both are missing, only the email once the name is set, none
-once both are set, and an empty local email is corrected with `--local`.
-
-### Merge-conflict and detached HEAD anchors will move
-
-Git's development branch moves the merge-conflict explanation from `git-merge`
-to the new `gitmergeconflicts` page and adds the explicit anchor
-`[[DETACHED_HEAD]]` to `git-checkout`. Once that release is served,
-`git-merge#_how_conflicts_are_presented` and `git-checkout#_detached_head` no
-longer point to the right passage. We keep both anchors while they work on the
-served release and update them as Documentation links describes; this
-subsection adds no separate rule.
-
-### Conflict messages are on standard output
-
-When a merge stops on a conflict, Git prints `CONFLICT (content): Merge conflict
-in <file>` and `Automatic merge failed; fix conflicts and then commit the
-result.` on standard output and nothing about the conflict on standard error.
-`explain` captures only standard error, so these messages never reach hint
-matching. We keep it that way: conflicts are detected from repository state, as
-the `merge-conflicts` conditions already do with `git diff --name-only
---diff-filter=U -z`. The introduction to the reactive hints will say so, so that
-no hint tries to match conflict messages in standard error.
-
-### Bisect detection must follow the bisect commands, not `git status`
-
-The specification detects a bisect through `BISECT_START`, while `git status`
-checks `BISECT_LOG` (`wt_status_check_bisect()` in `wt-status.c`). Git itself
-is split here: the bisect commands check `BISECT_START` (`bisect_autostart()`
-and `bisect_reset()` in `builtin/bisect.c`). For `git-hints`, a bisect is in
-progress exactly when `BISECT_START` exists, because that is when the commands
-the hint suggests work. `BISECT_LOG` alone is stale state and is ignored. The
-specification therefore keeps `BISECT_START`.
-
-### Behaviors present only in the code
-
-`implementation_notes.md` records behaviors that the code has and the suite
-tests, but that this specification does not describe:
-
-* the `bisect-in-progress` hint;
-* the `git init` suggestion and the `git-init` link in `not-a-repo`;
-* the suppression of `behind` and `diverged` during any paused operation;
-* the suppression of `tracked-but-ignored` while conflicts exist;
-* the `No hints.` line that `explain` prints when Git fails and no reactive hint
-  triggers.
-
-We adopt all five into the specification, because the suite already tests
-them.
-
-### Implementation in the next phase
-
-1. Add `priority class: workflow` and the test case described above to the
-   `commit-identity` section.
-2. Add two test steps. With HEAD detached, create only `BISECT_LOG` and verify
-   that `detached-head` is present and `bisect-in-progress` is absent; then
-   create only `BISECT_START` and verify that `detached-head` is absent and
-   `bisect-in-progress` is present. Hint structure, item 7, and
-   `Repo.operations` stay unchanged.
-3. Add the standard-output sentence to the introduction of the reactive hints,
-   and extend the `merge-conflicts` test to verify that the hint appears while
-   Git's captured standard error has no `CONFLICT` line.
-4. Add a `bisect-in-progress` hint section, informational, whose conditions and
-   test case mirror the existing check, and add the other behaviors listed
-   above to the `not-a-repo`, `behind`, `diverged`, and `tracked-but-ignored`
-   sections and to the description of `explain`.
-5. Update the two anchors together with the others, as Documentation links
-   describes.
-6. Run the full test suite, Ruff, and ty.
