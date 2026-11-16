@@ -2603,61 +2603,36 @@ Development strategy
 ====================
 
 This section is the team's plan for completing and extending `git-hints`. A
-specification and a working implementation already exist, so the plan does not
-start from scratch: it names the areas where the specification, the code, or
-both still need work, and the rules every change must follow. Each subsection
-ends with how its work will be implemented and tested in the next phase.
+specification and an implementation already exist, so the work changes both
+rather than starting from scratch. Each change is written into the part of this
+specification it concerns, and the code follows the specification:
 
-The work is divided into four areas. Each area becomes a level-2 subsection of
-this section, in this order:
+* Three new proactive hints, `stash-entries`, `unpushed-branches`, and
+  `stale-fetch`, are hint sections under `git-hints`, and `stash-entries` is
+  added to the precedence list of Hint structure, item 5.
+* Documentation links, under Implementation, defines how each hint's
+  documentation link is chosen and checked, and how each hint section is
+  connected with its code.
+* Language and libraries requires `GIT_OPTIONAL_LOCKS=0` for inspection
+  commands, and Testing has the test case for it.
 
-1. **Architecture and command execution.** The structure of the CLI, the Git
-   command executor, repository inspection, hint detection, reactive error
-   handling, and output rendering. This is the Implementation Strategy
-   subsection that follows.
+The two subsections below, Implementation Strategy and Specification gaps, are
+being merged into the parts of the specification they concern in the same way.
 
-2. **Documentation anchors and CodeChat markup.** Replace whole-page
-   documentation links with links to the passage that supports each hint, as
-   Hint structure requires, and connect each hint's specification passage with
-   its implementation and test using CodeChat Editor markup.
-
-3. **Specification gaps.** Places where the specification is incomplete or
-   disagrees with Git's actual behavior: `commit-identity` has no priority class
-   and no test case; the `merge-conflicts` documentation anchor will break with
-   the next Git release, because Git has moved that section to the new
-   `gitmergeconflicts` page; Git prints "Automatic merge failed" and `CONFLICT
-   (content)` on standard output, while `explain` inspects only standard error;
-   and the specification detects a bisect through `BISECT_START`, while Git's
-   own status code checks `BISECT_LOG`. The behaviors recorded in
-   `implementation_notes.md` that the specification does not describe are also
-   gaps: the `bisect-in-progress` hint, the `git init` suggestion and `git-init`
-   link in `not-a-repo`, the suppression of `behind` and `diverged` during any
-   paused operation and of `tracked-but-ignored` while conflicts exist, and the
-   `No hints.` line of `explain`; the decision is to write them into the
-   specification's hint sections, because the suite already tests them. This
-   subsection decides what the specification should say in each case.
-
-4. **New proactive hints.** Hints for situations recorded in the personal
-   experience notes that the existing hints do not cover: keeping track of
-   stash entries, local branches whose commits no remote has, and how old the
-   last fetch is before editing. This subsection defines each new hint in the
-   same format as the existing hint sections.
-
-All four areas follow these rules:
+All changes follow these rules:
 
 * Nothing listed under Future work is planned or implemented. This includes
   `def`, `howto`, `--exclude`, `--dismiss`, and `--bug`.
-* Git's own source code is never modified. `git-hints` only runs Git and reads
-  its documentation.
-* Hint IDs and the output format defined in Hint structure stay unchanged. New
-  hints receive new IDs; existing IDs are never reused or renamed.
-* Every change comes with a test. Tests that create repositories use the
-  existing `git_setup`, `make_temps`, `make_repo`, and `config_user` helpers
-  and must not depend on the developer's local Git configuration.
+* Git's own source code must not be modified. `git-hints` only runs Git and
+  reads its documentation.
+* Existing hint IDs and the output format defined in Hint structure must not
+  change. New hints receive new IDs.
+* Every change of behavior comes with a test. Tests that create repositories
+  use the existing `git_setup`, `make_temps`, `make_repo`, and `config_user`
+  helpers and must not depend on the developer's local Git configuration.
 * The text of this specification is the single source of truth. When the
-  specification and the code disagree, the difference is settled by deciding in
-  the specification which behavior is wanted; once it is written there, the
-  code follows it, never the other way round.
+  specification and the code disagree, the specification is changed first to
+  say which behavior is wanted, and the code follows it.
 
 Implementation Strategy
 -----------------------
