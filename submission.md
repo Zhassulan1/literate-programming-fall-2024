@@ -855,24 +855,71 @@ GitHub userid: Aiym-Takimbayeva
 
 #### Contributions
 
-(Team member's contributions)
+Aiym Takimbayeva moved the Specification gaps subsection into the parts of the
+spec it concerns (`commit-identity`, `detached-head`, a new `bisect-in-progress`
+section, `not-a-repo`, `behind`, `diverged`, `tracked-but-ignored`, and
+`explain`), drafting the edits with Claude Opus 5.5, and had GitHub Copilot
+implement and review the matching code and tests.
 
 #### Specification review rounds
 
-(Table showing spec review rounds)
+Each round used GitHub Copilot in VS Code (Agent mode, automatic model
+selection). Round 1 asked it to review the latest commit; rounds 2 and 3 used
+the prompt shown under Last specification review.
+
+| Round | Findings | Main changes made |
+| ----- | -------- | ----------------- |
+| 1     | 0        | None; the prompt covered only the latest commit, so later rounds named the changed sections. |
+| 2     | 2        | `detached-head` says "not on any local branch" and "to return to a branch that already contains this commit", since the check covers only local branches and `git switch` keeps uncommitted changes. |
+| 3     | 1        | None; the finding was rejected, as explained below. |
 
 #### Last specification review
 
-(LLM and prompt used)
+Prompting GitHub Copilot in VS Code (Agent mode, automatic model selection)
+with the following prompt produced the output below; strikethrough indicates
+LLM output that I deemed incorrect or irrelevant. Hint structure, item 7,
+requires the `error/blocked` hint only for an unresolved or stopped operation,
+and its next sentence says a healthy bisect is explained by
+`bisect-in-progress`, so the two statements do not contradict each other.
 
-(LLM output, possibly with strikethrough)
+```text
+Review the following parts of spec.md: the "Configure your commit identity?" hint, the "Detached HEAD state" hint, the "Bisect in progress" hint, the description of explain under CLI commands, and Hint structure, item 7. Do not modify any files. Report findings as a numbered list, then the total number of findings.
+```
+
+1. ~~Hint structure, item 7 is internally contradictory. It says any detected
+   operation state should produce a proactive `error/blocked` hint, but then
+   says a healthy bisect is not necessarily an error and should be explained
+   with the informational `bisect-in-progress` hint. Clarify that bisect is an
+   exception to the error/blocked requirement, or otherwise specify which
+   operation states require that hint.~~
+
+Total findings: 1
 
 #### Implementation review rounds
 
-(Table showing implementation review rounds)
+Each round used GitHub Copilot in VS Code (Agent mode, automatic model
+selection; `gpt-6-luna` for round 1, `mai-code-1.1-flash` for round 2). Every
+round ended with the full test suite, Ruff, and ty passing.
+
+| Round | Findings | Main changes made |
+| ----- | -------- | ----------------- |
+| 1     | –        | Implementation: `detached-head` wording in `proactive.py`, a standard-output note in `reactive.py`, and tests for `not-a-repo`, `commit-identity`, the bisect files, `merge-conflicts`, and the suppression of `behind`, `diverged`, and `tracked-but-ignored`; 60 tests pass. |
+| 2     | 0 (+1)   | The LLM found nothing; my own review found that two new assertions in `test_detached_head` matched hint wording, which Testing forbids, so they were removed. |
+| 3     | 0        | None. |
 
 #### Last implementation review
 
-(LLM and prompt used)
+Prompting GitHub Copilot in VS Code (Agent mode, automatic model selection)
+with the following prompt produced the output below.
 
-(LLM output, possibly with strikethrough)
+```text
+Review the code and test changes in the last two commits (git show HEAD~1 HEAD) against spec.md. Check that they implement the spec correctly and follow its Testing rules. Do not modify any files. Report findings as a numbered list, then the total number of findings.
+```
+
+1. No issues found in the reviewed changes. The detached-head wording
+   adjustments match the spec, and the test change removes wording-based
+   assertions in favor of ID-based checks, which is consistent with the spec's
+   Testing rules.
+
+Total findings: 0
+
