@@ -634,7 +634,7 @@ The Conditions of the hints below assume this check and do not repeat it.
 
 * Conditions: The current branch has no upstream branch configured. Confirm that
   the repository is on a local branch, rather than in a detached HEAD state,
-  using `git symbolic-ref --quiet --short HEAD`. Confirm that the branch has at
+  using `git symbolic-ref --quiet HEAD`. Confirm that the branch has at
   least one commit: `git rev-parse --verify --quiet HEAD` must exit 0, because
   pushing a branch with no commits fails with `src refspec <branch> does not
   match any`. Check for an upstream using `git rev-parse --abbrev-ref
@@ -1231,8 +1231,9 @@ The Conditions of the hints below assume this check and do not repeat it.
 
 * Conditions:
 
-  1. Run `git symbolic-ref --quiet --short HEAD`. Exit code 0 prints the current
-     branch name. Exit code 1 (detached HEAD) means the hint is absent. Other
+  1. Run `git symbolic-ref --quiet HEAD`. Exit code 0 prints the current branch
+     as `refs/heads/<name>`; remove `refs/heads/`, as Language and libraries
+     requires. Exit code 1 (detached HEAD) means the hint is absent. Other
      exit codes are inspection errors.
   2. Run `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`. Exit code
      0 prints the remote's default branch, for example `origin/main`; remove the
@@ -1603,7 +1604,9 @@ The Conditions of the hints below assume this check and do not repeat it.
      session (`rebase-apply` containing `applying`), during a bisect
      (`BISECT_START`, as in Hint structure, item 7), or while `git diff
      --name-only --diff-filter=U` returns paths: applying a stash then would
-     interfere with the operation, and the hints that explain it come first.
+     interfere with the operation, and the hints that explain it come first. The
+     hint is hidden as a whole, including its read-only `git stash show`, on
+     purpose, beyond what Hint structure, item 7, requires.
   2. Run `git stash list`. Exit code 0 is expected, with no output when no stash
      exists; other exit codes are inspection errors. Each line is one entry,
      newest first. Display the hint when there is at least one line.
@@ -1657,9 +1660,10 @@ The Conditions of the hints below assume this check and do not repeat it.
 * Command: For a branch with no upstream, `git push -u origin <branch>`. For a
   branch ahead of its upstream, `git push <remote> <branch>`, or `git push
   <remote> <branch>:<remote-branch>` when the remote branch name differs. You do
-  not need to switch to a branch to push it. Branch names in the commands are
-  quoted correctly for the shell. Afterward, `git branch -vv` shows the branch's
-  upstream, such as `[origin/<branch>]`, without `ahead`.
+  not need to switch to a branch to push it. The Command field gives one command
+  for each listed branch, in the order of the list; branches counted in "and N
+  more" get none. Branch names in the commands are quoted correctly for the
+  shell. Afterward, this hint no longer lists the branch.
 
 * ID: `unpushed-branches`, priority class: workflow, safety: safe.
 
@@ -1669,12 +1673,12 @@ The Conditions of the hints below assume this check and do not repeat it.
      cherry-pick, revert, `git am` session, or bisect, detected as in
      `stash-entries`, condition 1, and Hint structure, item 7. During a rebase
      or a bisect HEAD is detached, and the branch being worked on would
-     otherwise be listed.
+     otherwise be listed. During the other operations the hint is hidden on
+     purpose, beyond what Hint structure, item 7, requires: a reminder about
+     other branches gives way to the hints that explain the operation.
   2. Skip the hint if `git remote` lists no remote. Find the current branch
-     with `git symbolic-ref --quiet HEAD` and remove the leading `refs/heads/`;
-     `--short` is not used, because it prints `heads/<name>` when a tag has the
-     same name. Exit code 1 means detached HEAD, and then no branch is
-     excluded.
+     with `git symbolic-ref --quiet HEAD`, as Language and libraries describes;
+     exit code 1 means detached HEAD, and then no branch is excluded.
   3. Run `git log --branches --not --remotes --simplify-by-decoration --decorate
      --decorate-refs=refs/heads/ --no-show-signature --format=%D`. Exit code 0
      is expected; other exit codes are inspection errors. For each commit that
@@ -1692,18 +1696,18 @@ The Conditions of the hints below assume this check and do not repeat it.
      into at most five fields; only the last can contain spaces. Without an
      upstream, the last four fields are empty; a local upstream has the remote
      name `.`. The last field is `[ahead <k>]`, `[behind <m>]`, `[ahead <k>,
-     behind <m>]`, `[gone]` when the upstream's remote-tracking branch does not
-     exist, or empty when the branch is in sync. This output is used only to
-     label each branch found in step 3 and to choose its command.
+     behind <m>]`, `[gone]` when the upstream maps to a remote-tracking branch
+     that does not exist, or empty when the branch is in sync. This output is
+     used only to label each branch found in step 3 and to choose its command.
   5. For each branch found in step 3 other than the current one:
      1. Without an upstream, report it as `(no upstream)` if `git remote` lists
         `origin`, which its command uses, and skip it otherwise, as
-        `no-upstream-branch` does. A branch whose upstream is configured but
-        has no remote-tracking branch, as in a single-branch clone, also has
-        empty upstream fields. Skip it when `git config --get-regexp
-        '^branch\..*\.merge$'` lists `branch.<name>.merge` for it, because a
-        push does not create that remote-tracking branch; exit code 1 means
-        that no branch has one.
+        `no-upstream-branch` does. A branch whose configured upstream maps to no
+        remote-tracking branch, because the remote's fetch refspec does not
+        cover it, as in a single-branch clone, also has empty upstream fields.
+        Skip it when `git config --get-regexp '^branch\..*\.merge$'` lists
+        `branch.<name>.merge` for it, because a push does not create that
+        remote-tracking branch; exit code 1 means that no branch has one.
      2. With a remote upstream and `[ahead <k>]`, report it as `(ahead of
         <upstream> by <k>)`, using the remote name and the remote ref without
         `refs/heads/` in the command.
@@ -1719,10 +1723,10 @@ The Conditions of the hints below assume this check and do not repeat it.
 * Test case: Unpushed branches.
 
   1. The autouse `git_setup` fixture provides the isolated environment. Call
-     `make_temps(tmp_path_factory, 2)`, naming the directories `remote` and
-     `local`, and `config_user("user1", "user1@example.com")`. Run `git init
-     --bare -b main` in `remote` and clone it into `local`. In `local`, commit
-     `foo.txt` and run `git push -u origin main`.
+     `make_temps(tmp_path_factory, 3)`, naming the directories `remote`,
+     `local`, and `single`, and `config_user("user1", "user1@example.com")`. Run
+     `git init --bare -b main` in `remote` and clone it into `local`. In
+     `local`, commit `foo.txt` and run `git push -u origin main`.
   2. Verify that `unpushed-branches` is absent. Run `git branch topic` and
      verify that it is still absent, because `topic` has no commits of its own.
   3. Run `git switch -c feature`, commit `bar.txt`, and run `git switch main`.
@@ -1738,13 +1742,30 @@ The Conditions of the hints below assume this check and do not repeat it.
      branch -vv` shows `[origin/feature: ahead 1]`, that the hint is present,
      that it names `feature` with `(ahead of origin/feature by 1 commit)`, and
      that it suggests `git push origin feature`.
-  6. Run `git branch --track loc main`, commit a file on `loc`, and switch back
+  6. Run `git switch --detach feature`; verify that the hint names `feature`,
+     because in detached HEAD no branch is excluded. Run `git switch main`.
+  7. Run `git branch --track loc main`, commit a file on `loc`, and switch back
      to `main`. Verify that `git-hints --all` does not contain `loc (`.
-  7. Create branches `b1` through `b6` from `main`, each with one commit of its
+  8. Create branches `b1` through `b6` from `main`, each with one commit of its
      own, and switch back to `main`. Run `git-hints --all` and verify that the
      block names `b1` through `b5` but not `b6` or `feature`, and contains `and
      2 more`.
-  8. Run `git remote remove origin` and verify that the hint is absent.
+  9. Run `git push -u origin b1` and `git push origin --delete b1`, so that
+     `git branch -vv` shows `[origin/b1: gone]`. Run `git push -u origin b2`,
+     `git switch b2`, `git commit --amend -m "Change b2."`, and `git switch
+     main`, so that `git branch -vv` shows `[origin/b2: ahead 1, behind 1]`.
+     Verify that `git-hints --all` contains neither `b1 (` nor `b2 (`.
+  10. On `main`, commit a change to `foo.txt`; on a new branch `clash` from the
+      previous commit, commit a conflicting change. Run `git merge clash` on
+      `main` and require a nonzero exit code. Verify that `unpushed-branches` is
+      absent. Run `git merge --abort` as cleanup, including if an assertion
+      fails.
+  11. Run `git clone --single-branch <remote> <single>`. In `single`, run `git
+      switch -c nf`, commit `nf.txt`, run `git push -u origin nf`, and run `git
+      switch main`. Verify that `git for-each-ref --format='%(upstream)'
+      refs/heads/nf` prints an empty line and that `unpushed-branches` is
+      absent in `single`.
+  12. Run `git remote remove origin` and verify that the hint is absent.
 
 ### Fetch to see the newest remote commits?
 
@@ -1804,9 +1825,9 @@ The Conditions of the hints below assume this check and do not repeat it.
   age in seconds.
 
   1. Call `make_temps(tmp_path_factory, 3)`, naming the directories `remote`,
-     `local`, and `wt`, and set up `remote` and `local` as in step 1 of the
-     `unpushed-branches` test case. Let `path` be the output of `git rev-parse
-     --path-format=absolute --git-path FETCH_HEAD` in `local`.
+     `local`, and `wt`, and in `remote` and `local` run the setup commands of
+     step 1 of the `unpushed-branches` test case. Let `path` be the output of
+     `git rev-parse --path-format=absolute --git-path FETCH_HEAD` in `local`.
   2. Verify that `path` does not exist and that `stale-fetch` is absent: the
      clone and the push wrote no `FETCH_HEAD`.
   3. Run `git fetch`; verify that `path` is not empty and the hint is absent.
@@ -2345,10 +2366,14 @@ codes, so no additional Git library is required.
   and exit codes to determine which hints apply. Run every inspection command
   with `GIT_OPTIONAL_LOCKS=0` in its environment, so that `git status` does not
   take the index lock, and with `LC_ALL=C`, so that the diagnostics inspection
-  matches, such as "not a git repository", are in English. Inspection must not
-  change tracked content, the working tree, refs, or the stash; `git diff` may
-  still refresh the cached stat data in the index (`diff.autoRefreshIndex`,
-  which stays enabled because disabling it would make stat-only changes look
+  matches, such as "not a git repository", are in English. An inspection command
+  that needs the current branch's name uses `git branch --show-current`, as for
+  the repository context line, or `git symbolic-ref --quiet HEAD` with
+  `refs/heads/` removed. It must not use `git symbolic-ref --short`, which
+  prints `heads/<name>` when a tag has the same name. Inspection must not change
+  tracked content, the working tree, refs, or the stash; `git diff` may still
+  refresh the cached stat data in the index (`diff.autoRefreshIndex`, which
+  stays enabled because disabling it would make stat-only changes look
   modified). That refresh takes the index lock whatever `GIT_OPTIONAL_LOCKS`
   says, so inspection can still hold the lock briefly. The command run by
   `git-hints explain` is not given these variables. Do not execute commands
@@ -2362,15 +2387,16 @@ codes, so no additional Git library is required.
   standard input connected to the terminal. Leave Git's standard output
   connected to the terminal in normal output; under `--ids-only`, redirect Git's
   standard output to `subprocess.DEVNULL` so it is not displayed. Capture
-  standard error and display it after completion (not live). In normal output,
-  display the exit code; under `--ids-only`, omit the exit-code message. Return
-  Git's exit code unless Git cannot be launched or an unexpected inspection
-  error occurs. Use the command, exit code, standard error, and inspected
-  repository state to select reactive hints. Do not disable Git's terminal
-  prompting or editor for `git-hints explain`; the `GIT_TERMINAL_PROMPT=0`
-  requirement applies only to the tool's optional fetch and isolated test
-  environment. Do not claim to recover the result of an earlier command run
-  outside `git-hints explain`.
+  standard error and, after completion (not live), write the captured bytes to
+  standard error unchanged; decode a separate copy for matching. In normal
+  output, display the exit code; under `--ids-only`, omit the exit-code message.
+  Return Git's exit code unless Git cannot be launched or an unexpected
+  inspection error occurs. Use the command, exit code, standard error, and
+  inspected repository state to select reactive hints. Do not disable Git's
+  terminal prompting or editor for `git-hints explain`; the
+  `GIT_TERMINAL_PROMPT=0` requirement applies only to the tool's optional fetch
+  and isolated test environment. Do not claim to recover the result of an
+  earlier command run outside `git-hints explain`.
 
 When `git-hints explain` runs a command with repository-redirection options such
 as `-C`, `--git-dir`, or `--work-tree`, skip reactive hints that require
@@ -2485,7 +2511,10 @@ from the repository root, without using the network, and check that:
 4. each entry has a fragment or a recorded reason for a whole-page link, and
    each fragment has its verification record.
 
-Hint tests keep checking links through `git-hints --all`, as Testing requires.
+Check 2 can pass only when every link the code shows is in a hint section of
+this specification, including the `git-init` link of `not-a-repo` and the
+`git-bisect` link of `bisect-in-progress`, which Specification gaps adds. Hint
+tests keep checking links through `git-hints --all`, as Testing requires.
 
 ### Maintenance script
 
@@ -2493,30 +2522,31 @@ Hint tests keep checking links through `git-hints --all`, as Testing requires.
 hand, not by the test suite, as `uv run python scripts/check_doc_links.py
 <git-checkout> <tag>`, where `<git-checkout>` is a clone of the Git source and
 `<tag>` is the release that `git-scm.com` serves, such as `v2.56.0`. It changes
-no file and does not fetch, so the checkout is updated first. It prints one line
-per entry, plus the `unresolved` lines described below. If `<tag>` or `master`
-is not in the checkout, it says so and exits 2 before checking anything.
+no file and does not fetch, so `git -C <git-checkout> fetch origin` is run
+first. It prints one line per entry and check, plus the `unresolved` and
+`replacement-missing` lines described below. If `<tag>` or `origin/master` is
+not in the checkout, it says so and exits 2 before checking anything.
 
 1. For each entry with a section anchor, it reads the page at `<tag>` and at
-   `master` with `git -C <git-checkout> show <ref>:Documentation/<page>.adoc`,
-   following each `include::<file>[]` line, whose file name is relative to the
-   directory of the including file. An include that names an attribute, such as
-   `{build_dir}`, or a file that does not exist is printed as `unresolved <ref>
-   <file>` and skipped. Section titles are lines followed by an underline of
-   `-`, `~`, or `^` characters of the same length, and lines that start with
-   `==` to `=====` and a space. Delimited blocks, which start and end with a
-   line of four or more `-`, `.`, `=`, `*`, or `+` characters or with `|===`,
-   contain no titles, and their delimiter lines are not underlines. Titles
-   inside `ifdef::` and `ifndef::` blocks are collected whatever the condition,
-   which `--site` confirms. The script collects the explicit anchors `[[ID]]`
-   and, for each title without an explicit anchor line before it, the ID derived
-   by the rules above.
-2. It prints `ok <url>` when the ID exists at both refs, `missing <url>` when
-   it does not exist at `<tag>`, and `moves <url>` when it exists at `<tag>`
-   but not at `master`, which finds an anchor that will move before the
-   release that moves it. For an entry that records an expected replacement,
-   it prints `replacement-missing <url>` when the replacement does not exist at
-   `master`. An entry without a fragment is printed as `whole-page <url>
+   `origin/master` with `git -C <git-checkout> show
+   <ref>:Documentation/<page>.adoc`, following each `include::<file>[]` line,
+   whose file name is relative to the directory of the including file. An
+   include that names an attribute, such as `{build_dir}`, or a file that does
+   not exist is printed as `unresolved <ref> <file>` and skipped. Section titles
+   are lines followed by an underline of `-`, `~`, or `^` characters of the same
+   length, and lines that start with `==` to `=====` and a space. Delimited
+   blocks, which start and end with a line of four or more `-`, `.`, `=`, `*`,
+   or `+` characters or with `|===`, contain no titles, and their delimiter
+   lines are not underlines. Titles inside `ifdef::` and `ifndef::` blocks are
+   collected whatever the condition, which `--site` confirms. The script
+   collects the explicit anchors `[[ID]]` and, for each title without an
+   explicit anchor line before it, the ID derived by the rules above.
+2. It prints `ok <url>` when the ID exists at both refs, `missing <url>` when it
+   does not exist at `<tag>`, and `moves <url>` when it exists at `<tag>` but
+   not at `origin/master`, which finds an anchor that will move before the
+   release that moves it. For an entry that records an expected replacement, it
+   prints `replacement-missing <url>` when the replacement does not exist at
+   `origin/master`. An entry without a fragment is printed as `whole-page <url>
    <reason>`.
 3. With `--site`, it also downloads each page from `git-scm.com` once. It checks
    a section anchor or an option ID as an `id="<ID>"` attribute, and a text
@@ -2525,10 +2555,10 @@ is not in the checkout, it says so and exits 2 before checking anything.
    percent-decoded phrase, ignoring case; the phrase must occur exactly once. It
    prints `ok <date> <url>`, with the current date to copy into the entry's
    record, or `missing <url>`; when a page cannot be downloaded, its entries are
-   printed as `unreachable <url>`. Without `--site`, these entries are printed
-   as `unchecked <recorded date> <url>`.
-4. It exits 1 when any line starts with `missing` or `unreachable`, and 0
-   otherwise.
+   printed as `unreachable <url>`. Without `--site`, option IDs and text
+   fragments are printed as `unchecked <recorded date> <url>`.
+4. It exits 1 when any line starts with `missing`, `unreachable`, or
+   `replacement-missing`, and 0 otherwise.
 
 ### CodeChat markup
 
@@ -2635,12 +2665,13 @@ Test case for the inspection environment of Language and libraries, in
 
 1. Create a repository with one commit. Run `git-hints --all`, and then
    `git-hints explain -- git status --short`, each with `GIT_TRACE2_EVENT` set
-   to a new temporary file and `GIT_TRACE2_ENV_VARS=GIT_OPTIONAL_LOCKS` in its
-   environment. Git then writes a JSON `start` event for each Git process and,
-   when the variable is set, a `def_param` event with its value. Verify that
-   every Git process of the first run has `GIT_OPTIONAL_LOCKS` set to `0`, and
-   that in the second run the process with the arguments `status --short` has
-   no such event.
+   to a new temporary file, `GIT_TRACE2_ENV_VARS=GIT_OPTIONAL_LOCKS,LC_ALL`, and
+   `LC_ALL=C.UTF-8` in its environment. Git then writes a JSON `start` event for
+   each Git process and, for each listed variable that is set, a `def_param`
+   event with its value. Verify that every Git process of the first run has
+   `GIT_OPTIONAL_LOCKS` set to `0` and `LC_ALL` set to `C`, and that in the
+   second run the process with the arguments `status --short` has no
+   `GIT_OPTIONAL_LOCKS` event and has `LC_ALL` set to `C.UTF-8`.
 2. Inspection must keep working while another Git command holds the index lock,
    for example while `git commit -a` waits for its editor. Create an empty file
    at the path printed by `git rev-parse --path-format=absolute --git-path
