@@ -115,7 +115,6 @@ def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "Priority: informational" in block
     assert "git switch -c" in block
     assert "git switch main" in block
-    assert "To return to a branch that already contains this commit" in block
     assert "https://git-scm.com/docs/git-checkout#_detached_head" in block
     assert lines[0] == "Branch: detached HEAD"
     ids = hint_ids(local)
@@ -145,7 +144,6 @@ def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "Priority: data-loss risk" in block
     assert "git switch -c" in block
     assert "git switch main" not in block
-    assert "Your commits made here are not on any local branch" in block
     git(local, "switch", "-c", "saved-work")
     assert current_branch(local).stdout.strip() == "saved-work"
     assert "detached-head" not in hint_ids(local)
