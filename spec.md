@@ -1798,7 +1798,7 @@ The Conditions of the hints below assume this check and do not repeat it.
   6. Display the hint when at least one branch is reported. List up to five in
      the order of step 4, then "and N more" for the exact number not listed.
 
-* Related output: The current branch is never listed; the hints about the
+* Related output: The current branch is not listed; the hints about the
   current branch, such as `push-ahead`, `no-upstream-branch`, and `diverged`,
   apply to it instead.
 
@@ -2523,7 +2523,7 @@ After an unexpected inspection failure, still print the output that does not
 depend on the failed commands. When Git cannot be launched, report it once,
 stop, and print nothing on standard output.
 
-Decode Git output as UTF-8 (`encoding="utf-8", errors="replace"`), not with the
+Decode Git output as UTF-8, replacing invalid byte sequences, not with the
 locale default. When a path list is parsed, use `-z` or `-c
 core.quotePath=false`.
 
