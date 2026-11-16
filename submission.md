@@ -10,9 +10,9 @@ Draft submission
 
 ### Contributions
 
-* Aknur Seidazym: wrote the "Implementation Strategy" section of `spec.md`,
-  reviewed it with an LLM over three rounds, and recorded that history in
-  [llm-review.md](llm-review.md).
+* Aknur Seidazym: wrote the "Implementation Strategy" section of `spec.md`
+  and reviewed it with an LLM over three rounds, which the Implementation
+  Strategy review rounds table below summarizes.
 * Madina Amangeldi: verified the build, linters, and all tests on macOS with
   Python 3.10 and 3.14, fixed places where "Implementation Strategy"
   contradicted the rest of the specification (live stderr streaming and
@@ -40,8 +40,7 @@ OpenAI GPT-6.1-Sol (default effort), macOS, Python 3.14.6: the LLM built and
 installed the `git-hints` wheel in a temporary virtual environment, ran
 `git-hints --help`, `git-hints`, and `git-hints explain -- git status --short`
 successfully, reported that Ruff and ty passed, and ran the test suite with all
-58 tests passing. The full output is in
-[build-verification.md](build-verification.md).
+58 tests passing.
 
 #### Madina Amangeldi
 
@@ -436,8 +435,8 @@ that we deemed incorrect or irrelevant. Findings 1–3 and 6–11 restate
 requirements that other sections of `spec.md` already define, so repeating them
 in the strategy would overspecify it. Finding 4 conflicts with the required
 UTF-8 decoding. Finding 5 is already covered: the specification states that
-diagnostic-based recognition supports English Git messages only. The review
-history from rounds 1–3 is in [llm-review.md](llm-review.md).
+diagnostic-based recognition supports English Git messages only. Rounds 1–3
+are summarized in the Implementation Strategy review rounds table above.
 
 ```text
 Review ONLY the "Implementation Strategy" section of spec.md. Check for technical inaccuracies, contradictions with existing requirements, missing implementation decisions, and ambiguous or untestable statements. Do not review other sections. Do not modify any files. Report only relevant, actionable findings in a numbered list, followed by the total number of findings. Avoid stylistic suggestions and unnecessary expansion.
