@@ -2327,8 +2327,8 @@ codes, so no additional Git library is required.
   and repository-context requirements. Capture standard output, standard error,
   and exit codes to determine which hints apply. Run every inspection command
   with `GIT_OPTIONAL_LOCKS=0` in its environment, so that `git status` does not
-  take the index lock. Inspection never changes tracked content, the working
-  tree, refs, or the stash, but `git diff` may refresh the cached stat data in
+  take the index lock. Inspection must not change tracked content, the working
+  tree, refs, or the stash; `git diff` may still refresh the cached stat data in
   the index (`diff.autoRefreshIndex`, which stays enabled because disabling it
   would make stat-only changes look modified). The command run by `git-hints
   explain` is not given the variable. Do not execute commands suggested by
@@ -2590,6 +2590,15 @@ Repository setup commands must exit successfully; fail the test immediately if
 one does not. Run any command that is expected to fail as part of the behavior
 under test separately, and explicitly verify its expected exit code and output.
 
+Inspection must keep working while another Git command holds the index lock,
+for example while `git commit` waits for its editor. Test case, in
+`tests/test_state.py`: create a repository with one commit, then create an
+empty file at the path printed by `git rev-parse --path-format=absolute
+--git-path index.lock`. Run `git-hints --all` and verify that it exits 0, that
+its first line is `Branch: main`, and that its standard error contains no line
+starting with `git-hints:`. Verify that the lock file still exists and is
+empty, then remove it.
+
 Development strategy
 ====================
 
@@ -2704,13 +2713,6 @@ remote-tracking refs and `FETCH_HEAD`. The only permitted network operation is
 an explicitly requested `--fetch`, which follows the specification's timeout,
 environment, and fallback requirements.
 
-Test case, in `tests/test_state.py`: create a repository with one committed
-file. Change that file's modification time with `os.utime()` without changing
-its contents. Record the output of `git status --porcelain=v2 --branch`, `git
-rev-parse HEAD`, and `git stash list`, and the file's contents. Run `git-hints
---all` and verify that all four are unchanged and that `git status
---porcelain=v2 --branch` still reports no change for the file.
-
 ### Hint Detection and Prioritization
 
 Each hint is implemented as an independent condition evaluator using the
@@ -2801,9 +2803,7 @@ each change there comes with its own tests.
 
 ### Implementation in the next phase
 
-1. Add the repository-state test case of Repository Inspection to
-   `tests/test_state.py`.
-2. Keep the module map in Architecture and the output list in Output Rendering
+1. Keep the module map in Architecture and the output list in Output Rendering
    current as the other subsections add modules, such as the documentation
    table in `src/git_hints/docs.py`, and output.
 2. Run the full test suite, Ruff, and ty.
