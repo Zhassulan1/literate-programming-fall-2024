@@ -1007,7 +1007,7 @@ The Conditions of the hints below assume this check and do not repeat it.
   [detached HEAD](https://git-scm.com/docs/git-checkout#_detached_head "HEAD points at a commit instead of a branch; new commits belong to no branch").
   Create a branch if you want to keep working here and give your commits a
   branch name. When Conditions step 5 finds that HEAD is on no local branch,
-  add: "Your commits made here are not on any branch; create a branch before
+  add: "Your commits made here are not on any local branch; create a branch before
   switching away or they will be hard to find."
 
 * Git stage: You are working in the local repository at a specific commit
@@ -1019,7 +1019,7 @@ The Conditions of the hints below assume this check and do not repeat it.
   already made at the current detached HEAD a branch name.
 
   When Conditions step 5 prints at least one branch, also show: "To return to a
-  branch without keeping anything: `git switch <branch>`", with `<branch>`
+  branch that already contains this commit: `git switch <branch>`", with `<branch>`
   replaced by the first branch that step 5 printed. Expected result: HEAD is
   attached to that branch again, and `git status` reports `On branch <branch>`.
   Do not show this command when HEAD is on no local branch, because switching
