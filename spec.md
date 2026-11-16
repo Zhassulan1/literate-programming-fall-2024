@@ -2374,6 +2374,148 @@ Decode Git output as UTF-8 (`encoding="utf-8", errors="replace"`), not with the
 locale default. When a path list is parsed, use `-z` or `-c
 core.quotePath=false`.
 
+Documentation links
+-------------------
+
+Hint structure, item 3, asks each hint to link to the passage of the official
+Git manual that supports it. The implementation notes say that the current
+links are mostly whole pages and that no CodeChat Editor markup was added. This
+section defines how links are chosen, recorded, and checked, and how each hint
+section is connected with its code.
+
+### Choosing and deriving anchors
+
+Choose the passage that explains the state or failure the hint reports, not the
+page of the suggested command in general. Usually this is a named section of
+the man page, such as DESCRIPTION or DETACHED HEAD.
+
+The pages on `https://git-scm.com/docs/<page>` are rendered from
+`Documentation/<page>.adoc` in the Git source. A section's ID is derived from
+its title:
+
+1. If the title is preceded by an explicit anchor line `[[ID]]`, the ID is
+   exactly `ID`; for example, UPSTREAM BRANCHES, included into `git-pull` and
+   `git-push` from `urls-remotes.adoc`, has the ID `UPSTREAM-BRANCHES`.
+2. Otherwise the title is lowercased; every character that is not a letter,
+   digit, underscore, space, hyphen, or period is deleted; each run of spaces,
+   hyphens, and periods is replaced by one `_`, with no trailing `_`; and `_`
+   is prefixed. For example, NOTE ABOUT FAST-FORWARDS becomes
+   `_note_about_fast_forwards`, and REBASE VS. PULL/MERGE becomes
+   `_rebase_vs_pullmerge`.
+
+IDs of single options, such as `Documentation/git-config.txt-username`, are
+produced by the website's own build, not by the `.adoc` source, so they cannot
+be derived offline. They are allowed where a hint relies on one option, because
+they point to the exact passage. Each is verified against the live page, and
+its entry in the documentation table records the date of that check.
+
+Each section anchor is verified against the `Documentation/*.adoc` files of the
+Git release that `git-scm.com` currently serves (2.56.0 at the time of
+writing). When a page has no section that fits the hint, use a text fragment as
+Hint structure allows, quoting a short, unique phrase from that page in the
+single-phrase form `#:~:text=<phrase>`. A text fragment quotes the rendered
+page, not the `.adoc` source, so it is verified against the live page, and its
+entry records the date of that check. A whole-page link remains only when
+neither works, and its entry records the reason.
+
+Some anchors are known to move. Git's development branch adds the explicit
+anchor `[[DETACHED_HEAD]]` to `git-checkout`, which changes `#_detached_head`
+to `#DETACHED_HEAD`, and moves the merge-conflict explanation from
+`git-merge#_how_conflicts_are_presented` to the new `gitmergeconflicts` page,
+`gitmergeconflicts#markers`. Neither change is released yet. Keep the anchor
+that works on the served release, record the expected replacement in its entry
+of the documentation table, and update the specification and the table
+together once the new release is served.
+
+Examples, verified against `v2.56.0` and the live pages:
+
+* `push-ahead` — `https://git-scm.com/docs/git-push` →
+  `https://git-scm.com/docs/git-push#_description`
+* `diverged` — `https://git-scm.com/docs/git-pull` →
+  `https://git-scm.com/docs/git-pull#_description`, which says that `git pull
+  --ff-only`, the default, fails when the branches have diverged
+* `behind` — `https://git-scm.com/docs/git-pull` →
+  `https://git-scm.com/docs/git-pull#UPSTREAM-BRANCHES`, which says that the
+  upstream is the default for `git pull` with no arguments
+
+### Documentation table
+
+The module `src/git_hints/docs.py` holds one documentation table, with one
+entry per page and passage: the URL with its fragment and a verification
+record. The record is the Git version a section anchor was verified against,
+the date of the site check for an option ID or a text fragment, the expected
+replacement of an anchor that will move, or the reason a whole-page link
+remains. The hint text in `src/git_hints/proactive.py` and
+`src/git_hints/reactive.py` refers to entries of this table instead of writing
+URLs, and the templated `operation-in-progress` link becomes four entries, one
+each for `git-merge`, `git-rebase`, `git-cherry-pick`, and `git-revert`.
+
+The table is written by hand, not generated. An entry is added or changed when
+its link is chosen by the rules above, together with the hint text in this
+specification, which stays authoritative: a link is changed in the
+specification first. The test case below checks that the two agree, and the
+maintenance script re-checks the anchors.
+
+Test case, in `tests/test_docs.py`: read the documentation table and `spec.md`
+from the repository root, without using the network, and check that:
+
+1. each URL starts with `https://git-scm.com/docs/`;
+2. each URL appears in the hint sections of this specification, test cases
+   included;
+3. each entry has a fragment or a recorded reason for a whole-page link, and
+   each fragment has its verification record.
+
+Hint tests keep checking links through `git-hints --all`, as Testing requires.
+
+### Maintenance script
+
+`scripts/check_doc_links.py` re-checks the documentation table. It is run by
+hand, not by the test suite, as `uv run python scripts/check_doc_links.py
+<git-checkout> <tag>`, where `<git-checkout>` is a clone of the Git source and
+`<tag>` is the release that `git-scm.com` serves, such as `v2.56.0`. It changes
+no file and prints one line per entry.
+
+1. For each entry with a section anchor, it reads the page at `<tag>` and at
+   `master` with `git -C <git-checkout> show <ref>:Documentation/<page>.adoc`,
+   following each `include::<file>[]` line, whose file name is relative to
+   `Documentation/`. It collects the explicit anchors `[[ID]]` and the IDs
+   derived from section titles, which are lines followed by an underline of
+   `-`, `~`, or `^` characters of the same length.
+2. It prints `ok <url>` when the ID exists at both refs, `missing <url>` when
+   it does not exist at `<tag>`, and `moves <url>` when it exists at `<tag>`
+   but not at `master`, which finds an anchor that will move before the
+   release that moves it.
+3. With `--site`, it also downloads each page from `git-scm.com` once. It
+   checks an option ID as an `id="<ID>"` attribute, and a text fragment by
+   searching the page's text, with HTML tags removed and entities decoded, for
+   the percent-decoded phrase. It prints `ok <date> <url>`, with the current
+   date to copy into the entry's record, or `missing <url>`. Without `--site`,
+   these entries are printed as `unchecked <recorded date> <url>`.
+4. It exits 1 when any line starts with `missing`, and 0 otherwise.
+
+### CodeChat markup
+
+The purpose of this markup is that a reader of a hint section in the CodeChat
+Editor sees the code and the tests that implement the hint next to its
+specification. The editor does this by gathering fragments (see "Gathering
+fragments" in the CodeChat Editor `README.md`). A fragment marker `<fragment
+id="..."></fragment>` placed in a doc block, that is, a comment, covers that
+doc block and the next block, and its `following` attribute adds more blocks.
+An element with an `id` and a `data-gather` attribute that lists fragment IDs,
+such as a heading, displays those fragments in order.
+
+* In the code, the comment before each hint's function in the hint modules,
+  and before each of its tests, ends with a fragment marker whose `following`
+  attribute makes the fragment cover the whole function.
+* In this specification, each hint section ends with a gather heading,
+  "Implementation of" followed by the section title, that lists those
+  fragments.
+
+Fragment markers and gather headings must not appear inside hint text, which is
+rendered in the terminal. Fragment IDs have the form `cc-` followed by 10
+random letters or digits. The CodeChat Editor checks that the IDs are unique
+and that gathered fragments exist.
+
 Testing
 -------
 
@@ -2664,160 +2806,7 @@ each change there comes with its own tests.
 2. Keep the module map in Architecture and the output list in Output Rendering
    current as the other subsections add modules, such as the documentation
    table in `src/git_hints/docs.py`, and output.
-3. Run the full test suite, Ruff, and ty.
-
-Documentation anchors and CodeChat markup
------------------------------------------
-
-### Problem
-
-Hint structure asks each hint to link to the specific passage of the official
-Git manual that supports it, preferring the page's existing anchor and otherwise
-a text fragment that quotes the page. The implementation mostly links to whole
-pages, such as `https://git-scm.com/docs/git-pull` for `behind`. As the
-implementation notes explain, the anchors were left out because each one has to
-be checked against the page's wording. The notes also say that no CodeChat
-Editor fragment or gather markup was added, so nothing connects a hint's
-specification passage with the code and test that implement it.
-
-### Choosing and deriving anchors
-
-For each hint, we choose the passage that explains the state or failure the
-hint reports, not the page of the suggested command in general. Usually this is
-a named section of the man page, such as DESCRIPTION or DETACHED HEAD.
-
-The pages on `https://git-scm.com/docs/<page>` are rendered from
-`Documentation/<page>.adoc` in the Git source. A section's ID is derived from
-its title:
-
-1. If the title is preceded by an explicit anchor line `[[ID]]`, the ID is
-   exactly `ID`; for example, UPSTREAM BRANCHES, included into `git-pull` and
-   `git-push` from `urls-remotes.adoc`, has the ID `UPSTREAM-BRANCHES`.
-2. Otherwise the title is lowercased; every character that is not a letter,
-   digit, space, hyphen, or period is deleted; each run of spaces, hyphens, and
-   periods is replaced by one `_`, with no trailing `_`; and `_` is prefixed.
-   For example, NOTE ABOUT FAST-FORWARDS becomes `_note_about_fast_forwards`,
-   and REBASE VS. PULL/MERGE becomes `_rebase_vs_pullmerge`.
-
-IDs of single options, such as `Documentation/git-config.txt-username`, are
-produced by the website's own build, not by the `.adoc` source, so they cannot
-be derived offline. They are allowed where a hint relies on one option, because
-they point to the exact passage. Each is verified against the live page
-instead, and its entry in the documentation table records the date of that site
-check, so the maintenance script reports it for a manual re-check rather than
-failing.
-
-Each anchor is verified offline against the `Documentation/*.adoc` files of the
-Git release that `git-scm.com` currently serves (2.56.0 at the time of
-writing). When a page has no section that fits the hint, we use a text fragment
-as Hint structure allows, quoting a short, unique phrase from that page and
-percent-encoding reserved characters. A text fragment quotes the rendered page,
-not the `.adoc` source, so only the maintenance script verifies it, against the
-rendered page, and its entry records the date of that check. A whole-page link
-remains only when neither works, and the reason is recorded in its entry of the
-documentation table described below.
-
-Some anchors are known to move. Git's development branch already adds the
-explicit anchor `[[DETACHED_HEAD]]` to `git-checkout`, which changes
-`#_detached_head` to `#DETACHED_HEAD`, and moves the merge-conflict
-explanation from `git-merge` to the new `gitmergeconflicts` page. Neither
-change is released yet. We keep the anchor that works on the served release,
-record the expected replacement in its entry of the documentation table, and
-update the specification and the table together once the new release is served.
-
-Examples, verified against `v2.56.0` and the live pages:
-
-* `push-ahead` — `https://git-scm.com/docs/git-push` →
-  `https://git-scm.com/docs/git-push#_description`
-* `diverged` — `https://git-scm.com/docs/git-pull` →
-  `https://git-scm.com/docs/git-pull#_description`, which says that `git pull
-  --ff-only`, the default, fails when the branches have diverged
-* `behind` — `https://git-scm.com/docs/git-pull` →
-  `https://git-scm.com/docs/git-pull#UPSTREAM-BRANCHES`, which says that the
-  upstream is the default for `git pull` with no arguments
-* `merge-conflicts` —
-  `https://git-scm.com/docs/git-merge#_how_conflicts_are_presented` stays until
-  the next release is served; the expected replacement,
-  `https://git-scm.com/docs/gitmergeconflicts#markers`, is recorded in the
-  documentation table and confirmed once that page is published
-
-### Where the links live
-
-Each link appears twice: in the hint text of the hint's section in this
-specification, which the terminal renders as `[n] label: title URL`, and in one
-documentation table in the new module `src/git_hints/docs.py`. The table has
-one entry per page and passage, holding the URL with its fragment and a
-verification record: the Git version the anchor was verified against, the date
-of a site check for an option ID or a text fragment, or the reason a whole-page
-link remains. The hint text in `src/git_hints/proactive.py` and
-`src/git_hints/reactive.py` refers to entries of this table instead of writing
-URLs, and the templated `operation-in-progress` link becomes four entries, one
-each for `git-merge`, `git-rebase`, `git-cherry-pick`, and `git-revert`. This
-table is the checked-in list of verified anchors. The specification is
-authoritative and the code's table copies it: a link is changed in the
-specification first.
-
-### Testing
-
-A new offline test iterates the documentation table and checks that:
-
-1. each URL is well-formed and starts with `https://git-scm.com/docs/`;
-2. each URL appears somewhere in the hint sections of this specification, test
-   cases included;
-3. each entry has a fragment or a recorded reason for a whole-page link, and
-   each fragment has its verification record. A text fragment is verified only
-   by the maintenance script against the rendered page, so the test checks only
-   that its record exists.
-
-The test uses no network. Hint tests keep checking links through `git-hints
---all`, as the Testing section requires. A small maintenance script, which is
-not part of the test suite, re-checks the table against a Git documentation
-checkout at a given tag, and text fragments against the rendered pages, and
-reports anchors that are missing or that change on Git's development branch.
-
-### CodeChat markup
-
-The CodeChat Editor gathers code scattered across files into one place (see
-"Gathering fragments" in the CodeChat Editor `README.md`). A fragment marker
-`<fragment id="..."></fragment>` is placed in a doc block, that is, a comment,
-and covers that doc block and the next code or doc block; the `following`
-attribute includes more blocks. A gather element is any HTML element with an
-`id` and a `data-gather` attribute listing fragment IDs, such as an `h4`
-heading; it displays the listed fragments in order. Fragments are not allowed
-in Markdown files, so:
-
-* in the code, the comment before each hint's function in the hint modules, and
-  before each of its tests, ends with a fragment marker;
-* in this specification, each hint section ends with a gather heading,
-  "Implementation of" followed by the section title, that lists those
-  fragments.
-
-Comments inside a function start new doc blocks, such as the `# Step 1:` to
-`# Step 5:` comments in `detached_head`, so the marker before each hint function
-sets `following` to the number of blocks the function spans, which the
-maintenance script computes and the markup test recomputes.
-
-IDs have the form `cc-` followed by 10 random letters or digits and must be
-unique across the project.
-
-A markup test scans `src/` and `tests/` for fragment markers and `spec.md` for
-gather headings. It checks that every ID is unique, that every ID a gather
-heading lists exists, and that every hint section has a gather heading whose
-fragments exist.
-
-### Implementation steps
-
-1. Write the documentation table in `src/git_hints/docs.py`, make the hint text
-   refer to its entries, and write the offline test; the test first fails for
-   entries that have neither a fragment nor a recorded reason.
-2. For each hint, choose and verify the anchor, then update its link in this
-   specification and in the table.
-3. Write the maintenance script and run it against `v2.56.0` and Git's
-   development branch.
-4. Write the markup test, then add fragment markers to the hint code and tests,
-   with `following` computed by the maintenance script, and gather headings to
-   the hint sections of this specification.
-5. Run the full test suite, Ruff, and ty.
+2. Run the full test suite, Ruff, and ty.
 
 Specification gaps
 ------------------
@@ -2846,8 +2835,8 @@ to the new `gitmergeconflicts` page and adds the explicit anchor
 `[[DETACHED_HEAD]]` to `git-checkout`. Once that release is served,
 `git-merge#_how_conflicts_are_presented` and `git-checkout#_detached_head` no
 longer point to the right passage. We keep both anchors while they work on the
-served release and update them as Documentation anchors and CodeChat markup
-describes; this subsection adds no separate rule.
+served release and update them as Documentation links describes; this
+subsection adds no separate rule.
 
 ### Conflict messages are on standard output
 
@@ -2901,6 +2890,6 @@ them.
    test case mirror the existing check, and add the other behaviors listed
    above to the `not-a-repo`, `behind`, `diverged`, and `tracked-but-ignored`
    sections and to the description of `explain`.
-5. Update the two anchors together with the others, as Documentation anchors and
-   CodeChat markup describes.
+5. Update the two anchors together with the others, as Documentation links
+   describes.
 6. Run the full test suite, Ruff, and ty.
