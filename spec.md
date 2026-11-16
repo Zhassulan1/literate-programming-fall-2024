@@ -202,12 +202,12 @@ Hint structure
    `behind`, `push-ahead`, `staged-and-unstaged-changes`, `staged-changes`,
    `unstaged-changes`, `untracked-files`, `stash-entries`. This ordering applies
    only within a class; class order always wins. Other IDs sort by Unicode code
-   point after the listed IDs within their class. Future IDs that require special precedence
-   must be added to this list explicitly. Where detached HEAD includes commits
-   not contained in any local branch (check `git for-each-ref --contains HEAD
-   refs/heads`), classify `detached-head` as `data-loss risk`; otherwise
-   classify it as `informational` unless its individual definition specifies a
-   higher applicable class.
+   point after the listed IDs within their class. Future IDs that require
+   special precedence must be added to this list explicitly. Where detached HEAD
+   includes commits not contained in any local branch (check `git for-each-ref
+   --contains HEAD refs/heads`), classify `detached-head` as `data-loss risk`;
+   otherwise classify it as `informational` unless its individual definition
+   specifies a higher applicable class.
 
 6. **Command safety**: apply safety labeling to **each suggested command**,
    independently of the hint's priority class. Commands that only read or add
@@ -1581,13 +1581,15 @@ The Conditions of the hints below assume this check and do not repeat it.
 * Git stage: Stash entries are commits kept in your local repository outside
   any branch; their changes are not in your working directory until applied.
 
-* Command: `git stash show -p 0` shows the changes of `stash@{0}`, the newest
-  entry, as a patch; for an older entry, use its index from `git stash list`
+* Command: `git stash show -p --include-untracked 0` shows the changes of
+  `stash@{0}`, the newest entry, as a patch, including untracked files that `git
+  stash push -u` saved; for an older entry, use its index from `git stash list`
   instead of `0`. `git stash apply 0` applies them; afterward, `git status`
-  lists the restored changes and the entry stays in `git stash list`. Git
-  refuses to apply an entry that would overwrite local changes. Warning: `git
-  stash drop 0` deletes the entry, and its changes may be impossible to
-  recover; first check with `git stash show -p 0` that they are applied or
+  lists the restored changes and the entry stays in `git stash list`. If the
+  changes conflict with your files, Git either refuses to apply them or leaves
+  conflicts to resolve, and the entry stays in the list. Warning: `git stash
+  drop 0` deletes the entry, and its changes may be impossible to recover; first
+  check with `git stash show -p --include-untracked 0` that they are applied or
   committed. `git stash pop 0` applies and, on success, drops the entry, so the
   same warning applies. A plain index such as `0`, which Git accepts for
   `stash@{0}`, needs no quoting in any shell.
@@ -1621,8 +1623,8 @@ The Conditions of the hints below assume this check and do not repeat it.
   3. Append `y` to `foo.txt` and run `git stash push -m "First change"`. Verify
      that `git stash list` prints exactly `stash@{0}: On main: First change` and
      that `stash-entries` is present. Run `git-hints --all` and verify that the
-     block contains `1 entry`, that line, `git stash show -p 0`, `git
-     stash apply 0`, `Warning:` before `git stash drop 0`, and
+     block contains `1 entry`, that line, `git stash show -p --include-untracked
+     0`, `git stash apply 0`, `Warning:` before `git stash drop 0`, and
      `https://git-scm.com/docs/git-stash#_description`.
   4. Run `git switch -c other` and verify that `stash-entries` is still present.
   5. Run `git switch main`. Five times, append a line to `foo.txt` and run `git
@@ -1638,8 +1640,8 @@ The Conditions of the hints below assume this check and do not repeat it.
 
 * Hint: Do you want to
   [push](https://git-scm.com/docs/git-push#UPSTREAM-BRANCHES "Push a branch and set its upstream branch on the remote")
-  your other local branches? Besides the current branch, `<n>` commits that no
-  remote-tracking branch contains: `<list>`.
+  your other local branches? `<n>` commits that no remote-tracking branch
+  contains: `<list>`.
 
   `<n>` reads `1 local branch has`, `2 local branches have`, and so on.
   `<list>` names up to five branches, each followed by `(no upstream)` or
@@ -1655,28 +1657,33 @@ The Conditions of the hints below assume this check and do not repeat it.
   branch ahead of its upstream, `git push <remote> <branch>`, or `git push
   <remote> <branch>:<remote-branch>` when the remote branch name differs. You
   do not need to switch to a branch to push it. Afterward, `git branch -vv`
-  shows `[origin/<branch>]` for the branch, without `ahead`.
+  shows the branch's upstream, such as `[origin/<branch>]`, without `ahead`.
 
 * ID: `unpushed-branches`, priority class: workflow, safety: safe.
 
 * Conditions:
 
-  1. Suppress the hint during a merge, rebase, cherry-pick, revert, `git am`
-     session, or bisect, detected as in `stash-entries`, condition 1, and
-     Hint structure, item 7. During a rebase or a bisect HEAD is detached, and
-     the branch being worked on would otherwise be listed.
+  1. Suppress the hint while unmerged paths exist and during a merge, rebase,
+     cherry-pick, revert, `git am` session, or bisect, detected as in
+     `stash-entries`, condition 1, and Hint structure, item 7. During a rebase
+     or a bisect HEAD is detached, and the branch being worked on would
+     otherwise be listed.
   2. Skip the hint if `git remote` lists no remote. Find the current branch
-     with `git symbolic-ref --quiet --short HEAD`; exit code 1 means detached
-     HEAD, and then no branch is excluded.
-  3. Run `git log --branches --not --remotes --simplify-by-decoration
-     --no-show-signature --decorate-refs=refs/heads/ --format=%D`. Exit code 0
-     is expected; other exit codes are inspection errors. It prints one line
-     for each commit that no remote-tracking branch contains and that a local
-     branch points to, naming the local branches at that commit, separated by
-     `, `. `--decorate-refs=refs/heads/` keeps tags, `HEAD`, and
-     remote-tracking branches out of the output, and `--no-show-signature`
-     keeps `log.showSignature` from adding signature checks to it. One command
-     finds all such branches, however many there are.
+     with `git symbolic-ref --quiet HEAD` and remove the leading `refs/heads/`;
+     `--short` is not used, because it prints `heads/<name>` when a tag has the
+     same name. Exit code 1 means detached HEAD, and then no branch is
+     excluded.
+  3. Run `git log --branches --not --remotes --simplify-by-decoration --decorate
+     --decorate-refs=refs/heads/ --no-show-signature --format=%D`. Exit code 0
+     is expected; other exit codes are inspection errors. For each commit that
+     no remote-tracking branch contains and that a local branch points to, it
+     prints one line naming the local branches at that commit, separated by
+     `, `. Ignore empty lines, which root and merge commits produce.
+     `--decorate-refs=refs/heads/` keeps tags, `HEAD`, and remote-tracking
+     branches out of the output; before Git 2.35 it applies to `%D` only
+     together with `--decorate`. `--no-show-signature` keeps
+     `log.showSignature` from adding signature checks. One command finds all
+     such branches, however many there are.
   4. Run `git for-each-ref --format='%(refname:lstrip=2) %(upstream:remotename)
      %(upstream:remoteref) %(upstream:short) %(upstream:track)' refs/heads/`,
      which prints one line per branch, sorted by name. Split each line on spaces
@@ -1687,7 +1694,12 @@ The Conditions of the hints below assume this check and do not repeat it.
      exist, or empty when the branch is in sync. This output is used only to
      label each branch found in step 3 and to choose its command.
   5. For each branch found in step 3 other than the current one:
-     1. Without an upstream, report it as `(no upstream)`.
+     1. Without an upstream, report it as `(no upstream)` if `git remote` lists
+        `origin`, which its command uses, and skip it otherwise, as
+        `no-upstream-branch` does. A branch whose upstream is configured but
+        has no remote-tracking branch, as in a single-branch clone, also has
+        empty upstream fields and is reported this way; this is a known
+        limitation.
      2. With a remote upstream and `[ahead <k>]`, report it as `(ahead of
         <upstream> by <k>)`, using the remote name and the remote ref without
         `refs/heads/` in the command.
@@ -1723,7 +1735,7 @@ The Conditions of the hints below assume this check and do not repeat it.
      that it names `feature` with `(ahead of origin/feature by 1 commit)`, and
      that it suggests `git push origin feature`.
   6. Run `git branch --track loc main`, commit a file on `loc`, and switch back
-     to `main`. Verify that `git-hints --all` does not name `loc`.
+     to `main`. Verify that `git-hints --all` does not contain `loc (`.
   7. Create branches `b1` through `b6`, each with one commit of its own. Run
      `git-hints --all` and verify that the block names `b1` through `b5` but
      not `b6` or `feature`, and contains `and 2 more`.
@@ -1738,15 +1750,15 @@ The Conditions of the hints below assume this check and do not repeat it.
 
   `<age>` reads `the last fetch was <d> ago`, where `<d>` is the age in whole
   days, rounded down, as `1 day`, `2 days`, and so on, or `the last fetch failed
-  or found no branches`.
+  or fetched nothing`.
 
 * Git stage: Your local repository keeps remote-tracking branches, which copy
   the remote repository's branches only when you fetch.
 
-* Command: `git fetch` updates the remote-tracking branches and does not change
-  your branches, staging area, or working directory; afterward, `git status`
-  compares your branch with the updated upstream. Alternatively, `git-hints
-  --fetch` fetches before inspecting.
+* Command: `git fetch --all` updates the remote-tracking branches of every
+  remote and does not change your branches, staging area, or working directory;
+  afterward, `git status` compares your branch with the updated upstream.
+  Alternatively, `git-hints --fetch` fetches before inspecting.
 
 * ID: `stale-fetch`, priority class: informational, safety: safe.
 
@@ -1767,10 +1779,10 @@ The Conditions of the hints below assume this check and do not repeat it.
      that `git pull` runs, writes `FETCH_HEAD`; `git clone` and `git push` do
      not, so a push does not count as a fetch.
   4. If that file is empty, the hint applies with `the last fetch failed or
-     found no branches`: a failed fetch, and a fetch from a remote that has no
-     branches, leave `FETCH_HEAD` empty. Otherwise the hint applies when the
-     file's modification time is more than 24 hours before the current time. A
-     time in the future counts as recent.
+     fetched nothing`: a fetch that cannot reach its remote and a fetch that
+     fetches nothing both leave `FETCH_HEAD` empty. Otherwise the hint applies
+     when the file's modification time is more than 24 hours before the current
+     time. A time in the future counts as recent.
   5. Known limitations: a repository that was cloned and never fetched gets no
      hint, because `git clone` writes no `FETCH_HEAD`; and a fetch of any
      remote counts, so the hint stays silent after a fetch of one remote while
@@ -1794,7 +1806,8 @@ The Conditions of the hints below assume this check and do not repeat it.
      clone and the push wrote no `FETCH_HEAD`.
   3. Run `git fetch`; verify that `path` is not empty and the hint is absent.
   4. Set the age to two days; verify that the hint is present and that
-     `git-hints --all` contains `2 days ago`, `git fetch`, `git-hints --fetch`,
+     `git-hints --all` contains `2 days ago`, `git fetch --all`, `git-hints
+     --fetch`,
      and `https://git-scm.com/docs/git-fetch#_description`. Set the age to 47
      hours and verify that `git-hints --all` contains `1 day ago`. Set the age
      to 23 hours and verify that the hint is absent.
@@ -1806,8 +1819,8 @@ The Conditions of the hints below assume this check and do not repeat it.
   7. Set the age to two days and point `origin` at a missing directory with
      `git remote set-url origin <missing>`. Run `git-hints --all --fetch`;
      verify that the output contains `Fetch failed; showing results as of last
-     fetch.` and a `stale-fetch` block with `the last fetch failed or found no
-     branches`, and that `path` is empty. Restore the URL with `git remote
+     fetch.` and a `stale-fetch` block with `the last fetch failed or fetched
+     nothing`, and that `path` is empty. Restore the URL with `git remote
      set-url origin <remote>` and run `git fetch`.
   8. Set the age to two days and run `git worktree add <wt> feature`. In `wt`,
      verify that the hint is present, because only the main worktree's
@@ -2327,13 +2340,17 @@ codes, so no additional Git library is required.
   and repository-context requirements. Capture standard output, standard error,
   and exit codes to determine which hints apply. Run every inspection command
   with `GIT_OPTIONAL_LOCKS=0` in its environment, so that `git status` does not
-  take the index lock. Inspection must not change tracked content, the working
-  tree, refs, or the stash; `git diff` may still refresh the cached stat data in
-  the index (`diff.autoRefreshIndex`, which stays enabled because disabling it
-  would make stat-only changes look modified). The command run by `git-hints
-  explain` is not given the variable. Do not execute commands suggested by
-  hints. Do not fetch unless `--fetch` is supplied; follow that option's
-  environment and timeout requirements.
+  take the index lock, and with `LC_ALL=C`, so that the diagnostics inspection
+  matches, such as "not a git repository", are in English. Inspection must not
+  change tracked content, the working tree, refs, or the stash; `git diff` may
+  still refresh the cached stat data in the index (`diff.autoRefreshIndex`,
+  which stays enabled because disabling it would make stat-only changes look
+  modified). The command run by `git-hints explain` is not given these
+  variables. Do not execute commands suggested by hints. Do not fetch unless
+  `--fetch` is supplied; follow that option's environment and timeout
+  requirements. The `git fetch` run by `--fetch` is not an inspection command:
+  it updates remote-tracking branches and `FETCH_HEAD`, and it is not given
+  these variables.
 
 * `git-hints explain`: validate that the user-supplied argument list starts with
   `git` (only the exact word `git` is accepted), then execute it once. Leave
@@ -2398,10 +2415,12 @@ its title:
    `git-push` from `urls-remotes.adoc`, has the ID `UPSTREAM-BRANCHES`.
 2. Otherwise the title is lowercased; every character that is not a letter,
    digit, underscore, space, hyphen, or period is deleted; each run of spaces,
-   hyphens, and periods is replaced by one `_`, with no trailing `_`; and `_`
-   is prefixed. For example, NOTE ABOUT FAST-FORWARDS becomes
+   underscores, hyphens, and periods is replaced by one `_`, with no trailing
+   `_`; and `_` is prefixed. For example, NOTE ABOUT FAST-FORWARDS becomes
    `_note_about_fast_forwards`, and REBASE VS. PULL/MERGE becomes
-   `_rebase_vs_pullmerge`.
+   `_rebase_vs_pullmerge`. If the ID already occurs earlier on the page, `_2`,
+   `_3`, and so on is appended; the second CONFIGURATION section of `git-tag`
+   has the ID `_configuration_2`.
 
 IDs of single options, such as `Documentation/git-config.txt-username`, are
 produced by the website's own build, not by the `.adoc` source, so they cannot
@@ -2410,13 +2429,13 @@ they point to the exact passage. Each is verified against the live page, and
 its entry in the documentation table records the date of that check.
 
 Each section anchor is verified against the `Documentation/*.adoc` files of the
-Git release that `git-scm.com` currently serves (2.56.0 at the time of
-writing). When a page has no section that fits the hint, use a text fragment as
-Hint structure allows, quoting a short, unique phrase from that page in the
-single-phrase form `#:~:text=<phrase>`. A text fragment quotes the rendered
-page, not the `.adoc` source, so it is verified against the live page, and its
-entry records the date of that check. A whole-page link remains only when
-neither works, and its entry records the reason.
+Git release that `git-scm.com` currently serves. When a page has no section that
+fits the hint, use a text fragment as Hint structure allows, quoting a short,
+unique phrase from that page in the single-phrase form `#:~:text=<phrase>`. A
+text fragment quotes the rendered page, not the `.adoc` source, so it is
+verified against the live page, and its entry records the date of that check. A
+whole-page link remains only when neither works, and its entry records the
+reason.
 
 Some anchors are known to move. Git's development branch adds the explicit
 anchor `[[DETACHED_HEAD]]` to `git-checkout`, which changes `#_detached_head`
@@ -2427,25 +2446,17 @@ that works on the served release, record the expected replacement in its entry
 of the documentation table, and update the specification and the table
 together once the new release is served.
 
-Examples, verified against `v2.56.0` and the live pages:
-
-* `push-ahead` — `https://git-scm.com/docs/git-push` →
-  `https://git-scm.com/docs/git-push#_description`
-* `diverged` — `https://git-scm.com/docs/git-pull` →
-  `https://git-scm.com/docs/git-pull#_description`, which says that `git pull
-  --ff-only`, the default, fails when the branches have diverged
-* `behind` — `https://git-scm.com/docs/git-pull` →
-  `https://git-scm.com/docs/git-pull#UPSTREAM-BRANCHES`, which says that the
-  upstream is the default for `git pull` with no arguments
+Applying these rules to a hint changes its link in the hint section of this
+specification first and then its entry in the documentation table.
 
 ### Documentation table
 
 The module `src/git_hints/docs.py` holds one documentation table, with one
 entry per page and passage: the URL with its fragment and a verification
 record. The record is the Git version a section anchor was verified against,
-the date of the site check for an option ID or a text fragment, the expected
-replacement of an anchor that will move, or the reason a whole-page link
-remains. The hint text in `src/git_hints/proactive.py` and
+the date of the site check for an option ID or a text fragment, or the reason a
+whole-page link remains; for an anchor that will move, it also holds the
+expected replacement. The hint text in `src/git_hints/proactive.py` and
 `src/git_hints/reactive.py` refers to entries of this table instead of writing
 URLs, and the templated `operation-in-progress` link becomes four entries, one
 each for `git-merge`, `git-rebase`, `git-cherry-pick`, and `git-revert`.
@@ -2459,10 +2470,13 @@ maintenance script re-checks the anchors.
 Test case, in `tests/test_docs.py`: read the documentation table and `spec.md`
 from the repository root, without using the network, and check that:
 
-1. each URL starts with `https://git-scm.com/docs/`;
-2. each URL appears in the hint sections of this specification, test cases
-   included;
-3. each entry has a fragment or a recorded reason for a whole-page link, and
+1. each URL in the table starts with `https://git-scm.com/docs/`;
+2. the URLs in the table are exactly the `https://git-scm.com/docs/` URLs of
+   the Markdown links in the hint sections of this specification, those under
+   `git-hints` and `git-hints explain`, compared as whole strings;
+3. `src/git_hints/proactive.py` and `src/git_hints/reactive.py` contain no
+   `https://git-scm.com/docs/` string, so every link comes from the table;
+4. each entry has a fragment or a recorded reason for a whole-page link, and
    each fragment has its verification record.
 
 Hint tests keep checking links through `git-hints --all`, as Testing requires.
@@ -2477,19 +2491,26 @@ no file and prints one line per entry.
 
 1. For each entry with a section anchor, it reads the page at `<tag>` and at
    `master` with `git -C <git-checkout> show <ref>:Documentation/<page>.adoc`,
-   following each `include::<file>[]` line, whose file name is relative to
-   `Documentation/`. It collects the explicit anchors `[[ID]]` and the IDs
-   derived from section titles, which are lines followed by an underline of
-   `-`, `~`, or `^` characters of the same length.
+   following each `include::<file>[]` line, whose file name is relative to the
+   directory of the including file. An include that names an attribute, such
+   as `{build_dir}`, or a file that does not exist is printed as `unresolved
+   <ref> <file>` and skipped. Section titles are lines followed by an underline
+   of `-`, `~`, or `^` characters of the same length, and lines that start
+   with `==` to `=====` and a space. The script collects the explicit anchors
+   `[[ID]]` and, for each title without an explicit anchor line before it, the
+   ID derived by the rules above.
 2. It prints `ok <url>` when the ID exists at both refs, `missing <url>` when
    it does not exist at `<tag>`, and `moves <url>` when it exists at `<tag>`
    but not at `master`, which finds an anchor that will move before the
-   release that moves it.
+   release that moves it. An entry without a fragment is printed as
+   `whole-page <url> <reason>`.
 3. With `--site`, it also downloads each page from `git-scm.com` once. It
    checks an option ID as an `id="<ID>"` attribute, and a text fragment by
-   searching the page's text, with HTML tags removed and entities decoded, for
-   the percent-decoded phrase. It prints `ok <date> <url>`, with the current
-   date to copy into the entry's record, or `missing <url>`. Without `--site`,
+   searching the page's text, with HTML tags removed, entities decoded, and
+   each run of whitespace collapsed to one space, for the percent-decoded
+   phrase, ignoring case; the phrase must occur exactly once. It prints `ok
+   <date> <url>`, with the current date to copy into the entry's record, or
+   `missing <url>`. Without `--site`,
    these entries are printed as `unchecked <recorded date> <url>`.
 4. It exits 1 when any line starts with `missing`, and 0 otherwise.
 
@@ -2500,13 +2521,16 @@ Editor sees the code and the tests that implement the hint next to its
 specification. The editor does this by gathering fragments (see "Gathering
 fragments" in the CodeChat Editor `README.md`). A fragment marker `<fragment
 id="..."></fragment>` placed in a doc block, that is, a comment, covers that
-doc block and the next block, and its `following` attribute adds more blocks.
+doc block and the blocks after it; its `following` attribute sets how many, 1
+by default.
 An element with an `id` and a `data-gather` attribute that lists fragment IDs,
 such as a heading, displays those fragments in order.
 
 * In the code, the comment before each hint's function in the hint modules,
   and before each of its tests, ends with a fragment marker whose `following`
-  attribute makes the fragment cover the whole function.
+  attribute is set so that the fragment covers the whole function. This is
+  checked by viewing the gather heading in the CodeChat Editor, not by the test
+  suite.
 * In this specification, each hint section ends with a gather heading,
   "Implementation of" followed by the section title, that lists those
   fragments.
@@ -2590,14 +2614,24 @@ Repository setup commands must exit successfully; fail the test immediately if
 one does not. Run any command that is expected to fail as part of the behavior
 under test separately, and explicitly verify its expected exit code and output.
 
-Inspection must keep working while another Git command holds the index lock,
-for example while `git commit` waits for its editor. Test case, in
-`tests/test_state.py`: create a repository with one commit, then create an
-empty file at the path printed by `git rev-parse --path-format=absolute
---git-path index.lock`. Run `git-hints --all` and verify that it exits 0, that
-its first line is `Branch: main`, and that its standard error contains no line
-starting with `git-hints:`. Verify that the lock file still exists and is
-empty, then remove it.
+Test case for the inspection environment of Language and libraries, in
+`tests/test_state.py`:
+
+1. Create a repository with one commit. Run `git-hints --all`, and then
+   `git-hints explain -- git status --short`, each with `GIT_TRACE2_EVENT` set
+   to a new temporary file and `GIT_TRACE2_ENV_VARS=GIT_OPTIONAL_LOCKS` in its
+   environment. Git then writes a JSON `start` event for each Git process and,
+   when the variable is set, a `def_param` event with its value. Verify that
+   every Git process of the first run has `GIT_OPTIONAL_LOCKS` set to `0`, and
+   that in the second run the process with the arguments `status --short` has
+   no such event.
+2. Inspection must keep working while another Git command holds the index
+   lock, for example while `git commit` waits for its editor. Create an empty
+   file at the path printed by `git rev-parse --path-format=absolute
+   --git-path index.lock`. Run `git-hints --all` and verify that it exits 0,
+   that its first line is `Branch: main`, and that its standard error contains
+   no line starting with `git-hints:`. Verify that the lock file still exists
+   and is empty, then remove it.
 
 Development strategy
 ====================
@@ -2618,16 +2652,17 @@ specification it concerns, and the code follows the specification:
 
 The two subsections below, Implementation Strategy and Specification gaps, are
 being merged into the parts of the specification they concern in the same way.
+Until then, where they differ from those parts, their decisions apply.
 
 All changes follow these rules:
 
 * Nothing listed under Future work is planned or implemented. This includes
   `def`, `howto`, `--exclude`, `--dismiss`, and `--bug`.
-* Git's own source code must not be modified. `git-hints` only runs Git and
-  reads its documentation.
+* Git's own source code must not be modified.
 * Existing hint IDs and the output format defined in Hint structure must not
   change. New hints receive new IDs.
-* Every change of behavior comes with a test. Tests that create repositories
+* Every change to the behavior of `git-hints` comes with a test. Tests that
+  create repositories
   use the existing `git_setup`, `make_temps`, `make_repo`, and `config_user`
   helpers and must not depend on the developer's local Git configuration.
 * The text of this specification is the single source of truth. When the
