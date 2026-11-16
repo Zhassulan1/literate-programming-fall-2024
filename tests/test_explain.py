@@ -52,6 +52,9 @@ def test_merge_conflicts(tmp_path_factory: pytest.TempPathFactory) -> None:
     result = explain(repo2, "pull", "--no-rebase")
     try:
         assert result.returncode == 1
+        assert not any(
+            "CONFLICT" in line for line in result.stderr.splitlines()
+        )
         unmerged = git(repo2, "diff", "--name-only", "--diff-filter=U").stdout
         assert unmerged.split() == ["foo.txt"]
         block = blocks(result.stdout)["merge-conflicts"]

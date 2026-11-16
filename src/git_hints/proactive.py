@@ -306,8 +306,9 @@ def detached_head(ctx: Context) -> Hint | None:
     )
     if not branches:
         text += (
-            " Your commits made here are not on any branch; create a branch "
-            "before switching away or they will be hard to find."
+            " Your commits made here are not on any local branch; "
+            "create a branch before switching away or they will be "
+            "hard to find."
         )
     commands = [
         Command(
@@ -323,7 +324,7 @@ def detached_head(ctx: Context) -> Hint | None:
         branch = branches[0]
         commands.append(
             Command(
-                "To return to a branch without keeping anything: "
+                "To return to a branch that already contains this commit: "
                 + code(f"git switch {shell_quote(branch)}"),
                 f"HEAD is attached to {code(branch)} again, and `git status` "
                 f"reports {code('On branch ' + branch)}.",

@@ -558,6 +558,38 @@ def test_tracked_but_ignored(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "tracked-but-ignored" not in hint_ids(repo)
 
 
+def test_tracked_but_ignored_suppressed_during_conflict(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    (repo,) = make_temps(tmp_path_factory, 1)
+    config_user("user1", "user1@example.com")
+    make_repo(
+        repo,
+        [
+            ["git", "init", "-b", "main"],
+            write(repo / ".gitignore", "*.log\n"),
+            write(repo / "debug.log", "base\n"),
+            ["git", "add", ".gitignore"],
+            ["git", "add", "-f", "debug.log"],
+            ["git", "commit", "-m", "Add ignored log."],
+            ["git", "switch", "-c", "topic"],
+            write(repo / "debug.log", "topic\n"),
+            ["git", "commit", "-am", "Change log on topic."],
+            ["git", "switch", "main"],
+            write(repo / "debug.log", "main\n"),
+            ["git", "commit", "-am", "Change log on main."],
+        ],
+    )
+    assert git(repo, "merge", "topic", check=False).returncode != 0
+    try:
+        assert git(
+            repo, "diff", "--name-only", "--diff-filter=U"
+        ).stdout.strip()
+        assert "tracked-but-ignored" not in hint_ids(repo)
+    finally:
+        git(repo, "merge", "--abort")
+
+
 # `changes-on-default-branch`
 # ---------------------------
 def test_changes_on_default_branch(

@@ -213,6 +213,31 @@ def test_diverged(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "https://git-scm.com/docs/git-push" in block
 
 
+def test_upstream_hints_suppressed_during_merge(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    _, repo2 = behind_setup(tmp_path_factory)
+    git(repo2, "fetch")
+    assert "behind" in hint_ids(repo2)
+    git(repo2, "merge", "--no-commit", "--no-ff", "origin/main")
+    try:
+        ids = hint_ids(repo2)
+        assert "behind" not in ids
+    finally:
+        git(repo2, "merge", "--abort")
+
+    commit_file(repo2, "bar.txt", "local\n", "Add local change.")
+    git(repo2, "fetch")
+    assert "diverged" in hint_ids(repo2)
+    git(repo2, "merge", "--no-commit", "--no-ff", "origin/main")
+    try:
+        ids = hint_ids(repo2)
+        assert "diverged" not in ids
+        assert "behind" not in ids
+    finally:
+        git(repo2, "merge", "--abort")
+
+
 # `no-upstream-branch`
 # --------------------
 def test_no_upstream_branch(tmp_path_factory: pytest.TempPathFactory) -> None:

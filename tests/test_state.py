@@ -47,7 +47,9 @@ def test_not_a_repo(tmp_path_factory: pytest.TempPathFactory) -> None:
     lines, found = all_blocks(directory)
     block = found["not-a-repo"]
     assert "Command: git clone <repository-url>" in block
+    assert "Command: git init" in block
     assert "https://git-scm.com/docs/git-clone" in block
+    assert "https://git-scm.com/docs/git-init" in block
     assert lines[0] == "ID: not-a-repo"
     git(directory, "init", "-b", "main")
     assert "not-a-repo" not in hint_ids(directory)
@@ -113,6 +115,7 @@ def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "Priority: informational" in block
     assert "git switch -c" in block
     assert "git switch main" in block
+    assert "To return to a branch that already contains this commit" in block
     assert "https://git-scm.com/docs/git-checkout#_detached_head" in block
     assert lines[0] == "Branch: detached HEAD"
     ids = hint_ids(local)
@@ -142,6 +145,7 @@ def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "Priority: data-loss risk" in block
     assert "git switch -c" in block
     assert "git switch main" not in block
+    assert "Your commits made here are not on any local branch" in block
     git(local, "switch", "-c", "saved-work")
     assert current_branch(local).stdout.strip() == "saved-work"
     assert "detached-head" not in hint_ids(local)
@@ -206,7 +210,24 @@ def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
     )
     git(local, "switch", "--detach", "HEAD")
     assert "detached-head" in hint_ids(local)
-    git(local, "switch", "saved-work")
+    bisect_log = git_paths(local, "BISECT_LOG")[0]
+    bisect_log.touch()
+    try:
+        ids = hint_ids(local)
+        assert "detached-head" in ids
+        assert "bisect-in-progress" not in ids
+    finally:
+        bisect_log.unlink(missing_ok=True)
+
+    bisect_start = git_paths(local, "BISECT_START")[0]
+    bisect_start.touch()
+    try:
+        ids = hint_ids(local)
+        assert "detached-head" not in ids
+        assert "bisect-in-progress" in ids
+    finally:
+        bisect_start.unlink(missing_ok=True)
+        git(local, "switch", "saved-work")
 
 
 # An unreadable HEAD is reported separately, with a nonzero exit, while other
@@ -562,6 +583,7 @@ def test_commit_identity(tmp_path_factory: pytest.TempPathFactory) -> None:
     make_repo(repo, [["git", "init", "-b", "main"]])
     _, found = all_blocks(repo)
     block = found["commit-identity"]
+    assert "Priority: workflow" in block
     assert 'git config --global user.name "Your Name"' in block
     assert 'git config --global user.email "you@example.com"' in block
     assert "https://git-scm.com/docs/git-config" in block

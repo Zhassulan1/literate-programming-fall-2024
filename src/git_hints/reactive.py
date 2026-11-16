@@ -5,8 +5,9 @@
 # input and (normally) standard output connected to the terminal, so prompts,
 # editors, and Git's own output behave as usual. Standard error is captured,
 # shown after Git exits, and matched against the English diagnostics that
-# reactive hints recognize; an unrecognized diagnostic produces no hint rather
-# than a guess.
+# reactive hints recognize. Standard output is not captured or matched;
+# conflicts are detected from repository state. An unrecognized diagnostic
+# produces no hint rather than a guess.
 #
 # Most reactive hints also inspect the repository after the command runs. When
 # the command's global options point Git at another repository (`-C`,
