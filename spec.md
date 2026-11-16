@@ -994,8 +994,8 @@ The Conditions of the hints below assume this check and do not repeat it.
 
 * Conditions:
 
-  1. Run `git symbolic-ref --quiet --short HEAD`. Exit code 0 means HEAD is
-     attached to a branch, including a branch without its first commit; do not
+  1. Run `git symbolic-ref --quiet HEAD`. Exit code 0 means HEAD is attached to
+     a branch, including a branch without its first commit; do not
      display `detached-head`. Exit code 1 means HEAD is not symbolic; continue
      the checks. Other exit codes indicate errors, not this hint.
   2. Require `git rev-parse --verify --quiet "HEAD^{commit}"` to succeed before
@@ -1575,9 +1575,10 @@ The Conditions of the hints below assume this check and do not repeat it.
   [apply or drop](https://git-scm.com/docs/git-stash#_commands "Commands that restore a stash entry or remove it from the list")
   them?
 
-  `<n>` reads `1 entry`, `2 entries`, and so on; `<list>` is up to five lines
-  of `git stash list`, such as `stash@{0}: On main: First change`, joined with
-  `; ` on one line.
+  `<n>` reads `1 entry`, `2 entries`, and so on; `<list>` is up to five lines of
+  `git stash list`, such as `stash@{0}: On main: First change`, each in its own
+  code span so that a stash message is never read as Markdown, joined with `; `
+  on one line and followed by `; and N more` when more entries exist.
 
 * Git stage: Stash entries are commits kept in your local repository outside
   any branch; their changes are not in your working directory until applied.
@@ -1650,12 +1651,14 @@ The Conditions of the hints below assume this check and do not repeat it.
   your other local branches? `<n>` commits that no remote-tracking branch
   contains: `<list>`.
 
-  `<n>` reads `1 local branch has`, `2 local branches have`, and so on.
-  `<list>` names up to five branches, each followed by `(no upstream)` or
-  `(ahead of <upstream> by <k>)`, where `<upstream>` is the branch's
-  `%(upstream:short)` and `<k>` reads `1 commit`, `2 commits`, and so on. The
-  hint is always labeled "as of last fetch": it compares branches with
-  remote-tracking branches, and `--fetch` updates only one remote.
+  `<n>` reads `1 local branch has`, `2 local branches have`, and so on. `<n>`
+  counts every reported branch, listed or not. `<list>` names up to five
+  branches, separated by `, ` and followed by `, and N more` when more are
+  reported, each followed by `(no upstream)` or `(ahead of <upstream> by <k>)`,
+  where `<upstream>` is the branch's `%(upstream:short)` and `<k>` reads `1
+  commit`, `2 commits`, and so on. The hint is always labeled "as of last
+  fetch": it compares branches with remote-tracking branches, and `--fetch`
+  updates only one remote.
 
 * Git stage: These commits are in your local repository only; the remote
   repository has no copy of them until you push the branches.
@@ -1676,11 +1679,12 @@ The Conditions of the hints below assume this check and do not repeat it.
 
   1. Suppress the hint while unmerged paths exist and during a merge, rebase,
      cherry-pick, revert, `git am` session, or bisect, detected as in
-     `stash-entries`, condition 1, and Hint structure, item 7. During a rebase
-     or a bisect HEAD is detached, and the branch being worked on would
-     otherwise be listed. During the other operations the hint is hidden on
-     purpose, beyond what Hint structure, item 7, requires: a reminder about
-     other branches gives way to the hints that explain the operation.
+     `stash-entries`, condition 1, and Hint structure, item 7. During a rebase,
+     and during a bisect once it has checked out a commit, HEAD is detached, and
+     the branch being worked on would otherwise be listed. During the other
+     operations the hint is hidden on purpose, beyond what Hint structure, item
+     7, requires: a reminder about other branches gives way to the hints that
+     explain the operation.
   2. Skip the hint if `git remote` lists no remote. Find the current branch
      with `git symbolic-ref --quiet HEAD`, as Language and libraries describes;
      exit code 1 means detached HEAD, and then no branch is excluded.
@@ -1724,8 +1728,9 @@ The Conditions of the hints below assume this check and do not repeat it.
   6. Display the hint when at least one branch is reported. List up to five in
      the order of step 4, then "and N more" for the exact number not listed.
 
-* Related output: The current branch is never listed; `push-ahead`,
-  `no-upstream-branch`, and `diverged` cover it.
+* Related output: The current branch is never listed; the hints about the
+  current branch, such as `push-ahead`, `no-upstream-branch`, and `diverged`,
+  apply to it instead.
 
 * Test case: Unpushed branches.
 
@@ -1829,10 +1834,10 @@ The Conditions of the hints below assume this check and do not repeat it.
      remote counts, so the hint stays silent after a fetch of one remote while
      another remote's branches are old.
 
-* Related output: `behind`, `diverged`, and `push-ahead` keep their "as of last
-  fetch" label; this hint says how old that fetch is. `git fetch
-  --no-write-fetch-head` and `--dry-run` write no `FETCH_HEAD`, so the hint may
-  still appear after them.
+* Related output: `behind`, `diverged`, `push-ahead`, and `unpushed-branches`
+  keep their "as of last fetch" label; this hint says how old that fetch is.
+  `git fetch --no-write-fetch-head` and `--dry-run` write no `FETCH_HEAD`, so
+  the hint may still appear after them.
 
 * Test case: Stale fetch.
 
@@ -1840,9 +1845,10 @@ The Conditions of the hints below assume this check and do not repeat it.
   age in seconds.
 
   1. Call `make_temps(tmp_path_factory, 3)`, naming the directories `remote`,
-     `local`, and `wt`, and in `remote` and `local` run the setup commands of
-     step 1 of the `unpushed-branches` test case. Let `path` be the output of
-     `git rev-parse --path-format=absolute --git-path FETCH_HEAD` in `local`.
+     `local`, and `wt`, and run step 1 of the `unpushed-branches` test case,
+     including its `config_user` call, with these directories in place of its
+     own `make_temps` call. Let `path` be the output of `git rev-parse
+     --path-format=absolute --git-path FETCH_HEAD` in `local`.
   2. Verify that `path` does not exist and that `stale-fetch` is absent: the
      clone and the push wrote no `FETCH_HEAD`.
   3. Run `git fetch`; verify that `path` is not empty and the hint is absent.
@@ -1865,7 +1871,9 @@ The Conditions of the hints below assume this check and do not repeat it.
   8. Set the age to two days and run `git worktree add <wt> feature`. In `wt`,
      verify that the hint is present, because only the main worktree's
      `FETCH_HEAD` exists. Run `git fetch` in `wt`; verify that the hint is
-     absent in `wt` and still present in `local`.
+     absent in `wt` and still present in `local`. Running `git-hints` in `wt`, a
+     linked worktree that `make_repo()` did not create, is an exception to the
+     working-directory rule of Testing.
   9. In `local`, run `git bisect start` and verify that the hint is absent; run
      `git bisect reset` as cleanup. Append a line to `foo.txt` and run `git
      stash push`. Verify that `git-hints --all --ids-only` lists `stash-entries`
@@ -2459,11 +2467,11 @@ The pages on `https://git-scm.com/docs/<page>` are rendered from
 its title:
 
 1. If the title is preceded by an explicit anchor line `[[ID]]`, the ID is
-   exactly `ID`. An inline anchor `[[ID]]` inside the title, as in
-   `REMOTES[[REMOTES]]`, adds the ID `ID`, and the section keeps the ID that
-   rule 2 derives from the title without the anchor, here `_remotes`; for
-   example, UPSTREAM BRANCHES, included into `git-pull` and `git-push` from
-   `urls-remotes.adoc`, has the ID `UPSTREAM-BRANCHES`.
+   exactly `ID`; for example, UPSTREAM BRANCHES, included into `git-pull` and
+   `git-push` from `urls-remotes.adoc`, has the ID `UPSTREAM-BRANCHES`. An
+   inline anchor `[[ID]]` inside the title, as in `REMOTES[[REMOTES]]`, adds
+   the ID `ID`, and the section keeps the ID that rule 2 derives from the title
+   without the anchor, here `_remotes`.
 2. Otherwise the title is lowercased; every character that is not a letter,
    digit, underscore, space, hyphen, or period is deleted; each run of spaces,
    underscores, hyphens, and periods is replaced by one `_`, with no trailing
@@ -2498,7 +2506,9 @@ of the documentation table, and update the specification and the table
 together once the new release is served.
 
 Applying these rules to a hint changes its link in the hint section of this
-specification first and then its entry in the documentation table.
+specification first and then its entry in the documentation table. In this
+phase every link in the hint sections, including the URLs that test cases name
+in code spans, is chosen again by these rules.
 
 ### Documentation table
 
@@ -2556,14 +2566,16 @@ not in the checkout, it says so and exits 2 before checking anything.
    whose file name is relative to the directory of the including file. An
    include that names an attribute, such as `{build_dir}`, or a file that does
    not exist is printed as `unresolved <ref> <file>` and skipped. Section titles
-   are lines that start with `==` to `=====` and a space, and non-empty lines
-   followed by an underline of `-`, `~`, or `^` characters whose length differs
-   from the title's by at most one; such an underline is not a block delimiter.
-   Delimited blocks, which start and end with a line of four or more `-`, `.`,
-   `=`, `*`, `+`, or `/` characters or with `|===`, contain no titles, and their
-   delimiter lines are not underlines. Titles inside `ifdef::` and `ifndef::`
-   blocks are collected whatever the condition, which `--site` confirms. The
-   script collects the explicit anchors `[[ID]]` and, for each title without an
+   are lines that start with `==` to `======` and a space, and non-empty lines
+   followed by an underline of `-`, `~`, `^`, or `+` characters whose length
+   differs from the title's by at most one. The document title on the first
+   line, underlined with `=`, is not a section, and no underline is a block
+   delimiter. A delimited block starts with a line of four or more `-`, `.`,
+   `=`, `*`, `+`, or `/` characters, or with `|===`, and ends at the next line
+   identical to the opening one; it contains no titles, and its delimiter lines
+   are not underlines. Titles inside `ifdef::` and `ifndef::` blocks are
+   collected whatever the condition, which `--site` confirms. The script
+   collects the explicit anchors `[[ID]]` and, for each title without an
    explicit anchor line before it, the ID derived by the rules above.
 2. It prints `ok <url>` when the ID exists at both refs, `missing <url>` when it
    does not exist at `<tag>`, and `moves <url>` when it exists at `<tag>` but
@@ -2598,14 +2610,16 @@ such as a heading, displays those fragments in order.
 
 * In the code, the comment before each hint's function in the hint modules, and
   before each of its tests, ends with a fragment marker whose `following`
-  attribute is set so that the fragment covers the whole function. A hint
+  attribute is set so that the fragment covers the whole function; this is
+  checked by viewing the gather heading in the CodeChat Editor, not by the test
+  suite. A hint function without a comment before it gets one. A hint
   implemented in several functions, such as `merge-conflicts` in both hint
   modules, has one fragment per function, all listed in its gather heading;
-  helpers that several hints share get no fragment. This is checked by viewing
-  the gather heading in the CodeChat Editor, not by the test suite.
+  helpers that several hints share get no fragment.
 * In this specification, each hint section ends with a gather heading,
-  "Implementation of" followed by the section title, that lists those
-  fragments.
+  "Implementation of" followed by the section title, that lists those fragments.
+  The gather headings are added together with the markers, when the code is
+  written.
 
 Fragment markers and gather headings must not appear inside hint text, which is
 rendered in the terminal. Fragment IDs are the ones the CodeChat Editor
@@ -2701,13 +2715,14 @@ Test case for the inspection environment of Language and libraries, in
    other Git process of that run, which inspects the repository for reactive
    hints, has the same values as in the first run.
 2. Inspection must keep working while another Git command holds the index lock,
-   for example while `git commit -a` waits for its editor. Change the committed
-   file's modification time with `os.utime()`, so that `git diff` tries to
-   refresh the index, and create an empty file at the path printed by `git
-   rev-parse --path-format=absolute --git-path index.lock`. Run `git-hints
-   --all` and verify that it exits 0, that its first line is `Branch: main`, and
-   that its standard error contains no line starting with `git-hints:`. Verify
-   that the lock file still exists and is empty, then remove it.
+   for example while `git commit -a` waits for its editor. Move the committed
+   file's modification time one hour into the past with `os.utime()`, so that
+   `git diff` tries to refresh the index, and create an empty file at the path
+   printed by `git rev-parse --path-format=absolute --git-path index.lock`. Run
+   `git-hints --all` and verify that it exits 0, that its first line is `Branch:
+   main`, and that its standard error contains no line starting with
+   `git-hints:`. Verify that the lock file still exists and is empty, then
+   remove it.
 3. Clone an empty bare repository, commit a file, run `git push -u origin
    main`, commit another file, and create a tag named `main`. Verify that
    `git-hints --all --ids-only` lists `push-ahead`, which a branch name read
@@ -2745,9 +2760,9 @@ All changes follow these rules:
 * Existing hint IDs and the output format defined in Hint structure must not
   change. New hints receive new IDs.
 * Every change to the behavior of `git-hints` comes with a test. Tests that
-  create repositories
-  use the existing `git_setup`, `make_temps`, `make_repo`, and `config_user`
-  helpers and must not depend on the developer's local Git configuration.
+  create repositories use the existing `git_setup`, `make_temps`, `make_repo`,
+  and `config_user` helpers and must not depend on the developer's local Git
+  configuration.
 * The text of this specification is the single source of truth. When the
   specification and the code disagree, the specification is changed first to
   say which behavior is wanted, and the code follows it.
