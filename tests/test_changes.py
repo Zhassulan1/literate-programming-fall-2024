@@ -632,7 +632,7 @@ def test_tracked_but_ignored_suppressed_during_conflict(
 
 # `changes-on-default-branch`
 # ---------------------------
-# <fragment id="cc-QYkz_SkNyN" following="3"></fragment>
+# <fragment id="cc-QYkz_SkNyN" following="5"></fragment>
 def test_changes_on_default_branch(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -766,6 +766,38 @@ def test_changes_on_default_branch(
     finally:
         git(local, "merge", "--abort")
 
+    # A `git am` session leaves HEAD attached, but `git switch` refuses to run
+    # during it.
+    patch = git(local, "format-patch", "-1", "-o", str(work), "feature")
+    make_repo(
+        local,
+        [
+            write(local / "foo.txt", "main"),
+            ["git", "commit", "-am", "Change foo on main."],
+        ],
+    )
+    am = git(local, "am", patch.stdout.strip(), check=False)
+    try:
+        assert am.returncode != 0
+        assert (
+            git(
+                local, "symbolic-ref", "--quiet", "--short", "HEAD"
+            ).stdout.strip()
+            == "main"
+        )
+        rebase_apply = git(
+            local,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "rebase-apply",
+        ).stdout.strip()
+        assert (Path(rebase_apply) / "applying").exists()
+        append(local / "foo.txt", "y")()
+        assert "changes-on-default-branch" not in hint_ids(local)
+    finally:
+        git(local, "am", "--abort")
+
 
 # `stash-entries`
 # ---------------
@@ -807,6 +839,7 @@ def test_stash_entries(tmp_path_factory: pytest.TempPathFactory) -> None:
         "Warning: git stash drop 0",
         "Warning: git stash pop 0",
     ]
+    assert "could not restore the untracked files" in collapse(block)
 
     git(repo, "switch", "-c", "other")
     assert "stash-entries" in hint_ids(repo)

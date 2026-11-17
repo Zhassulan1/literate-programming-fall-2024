@@ -449,7 +449,7 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 # `detached-head`
 # ---------------
-# <fragment id="cc-R_xrTpSWD5" following="11"></fragment>
+# <fragment id="cc-R_xrTpSWD5" following="13"></fragment>
 def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
     local, remote = make_temps(tmp_path_factory, 2)
     config_user("user1", "user1@example.com")
@@ -619,6 +619,40 @@ def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
         assert "bisect-in-progress" in ids
     finally:
         bisect_start.unlink(missing_ok=True)
+        git(local, "switch", "saved-work")
+
+    # `git switch` refuses to run during a merge, and `git switch <branch>`
+    # also while unmerged paths exist.
+    make_repo(
+        local,
+        [
+            ["git", "switch", "--detach", "main"],
+            ["git", "merge", "--no-commit", "--no-ff", "saved-work"],
+        ],
+    )
+    try:
+        assert git_paths(local, "MERGE_HEAD")[0].exists()
+        assert "detached-head" not in hint_ids(local)
+    finally:
+        git(local, "merge", "--abort")
+    make_repo(
+        local,
+        [
+            write(local / "foo.txt", "xxxyzv"),
+            ["git", "stash"],
+            ["git", "switch", "--detach", "saved-work"],
+        ],
+    )
+    pop = git(local, "stash", "pop", check=False)
+    try:
+        assert pop.returncode != 0
+        unmerged = git(local, "diff", "--name-only", "--diff-filter=U")
+        assert unmerged.stdout == "foo.txt\n"
+        assert not git_paths(local, "MERGE_HEAD")[0].exists()
+        assert "detached-head" not in hint_ids(local)
+    finally:
+        git(local, "reset", "--hard")
+        git(local, "stash", "drop")
         git(local, "switch", "saved-work")
 
 

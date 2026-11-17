@@ -278,7 +278,7 @@ def test_upstream_hints_suppressed_during_merge(
 
 # `no-upstream-branch`
 # --------------------
-# <fragment id="cc-t7V1Ualy4j" following="3"></fragment>
+# <fragment id="cc-t7V1Ualy4j" following="5"></fragment>
 def test_no_upstream_branch(tmp_path_factory: pytest.TempPathFactory) -> None:
     first, second = make_temps(tmp_path_factory, 2)
     make_repo(first, [["git", "init", "-b", "main"]])
@@ -317,6 +317,13 @@ def test_no_upstream_branch(tmp_path_factory: pytest.TempPathFactory) -> None:
         found["no-upstream-branch"]
     )
 
+    # A push to a remote branch that isn't an ancestor of HEAD is rejected.
+    git(first, "switch", "-c", "side")
+    git(first, "push", "origin", "side")
+    assert "no-upstream-branch" in hint_ids(first)
+    git(first, "commit", "--amend", "-m", "Change foo.")
+    assert "no-upstream-branch" not in hint_ids(first)
+
 
 # `unpushed-branches`
 # -------------------
@@ -354,6 +361,15 @@ def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
         "git push -u origin feature"
     ]
     assert "https://git-scm.com/docs/git-push#UPSTREAM-BRANCHES" in block
+    git(local, "branch", "a&b", "feature")
+    git(local, "branch", "x$y", "feature")
+    _, found = all_blocks(local)
+    assert commands(found["unpushed-branches"]) == [
+        'git push -u origin "a&b"',
+        "git push -u origin feature",
+        "git push -u origin 'x$y'",
+    ]
+    git(local, "branch", "-D", "a&b", "x$y")
 
     git(local, "switch", "feature")
     assert "unpushed-branches" not in hint_ids(local)
@@ -521,7 +537,7 @@ def reported_failures(stderr: str) -> list[str]:
 
 
 # The test case for `stale-fetch`.
-# <fragment id="cc-ki8lk258rw" following="9"></fragment>
+# <fragment id="cc-ki8lk258rw" following="11"></fragment>
 def test_stale_fetch(tmp_path_factory: pytest.TempPathFactory) -> None:
     remote, local, wt, empty = make_temps(tmp_path_factory, 4)
     clone_and_push(remote, local)
@@ -609,6 +625,13 @@ def test_stale_fetch(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert ids.index("stash-entries") < ids.index("stale-fetch")
 
     git(local, "remote", "remove", "origin")
+    assert "stale-fetch" not in hint_ids(local)
+    # A remote without remote-tracking branches has nothing out of date, even
+    # though its fetch left `FETCH_HEAD` empty.
+    git(local, "remote", "add", "origin", str(empty))
+    git(local, "fetch")
+    assert git(local, "for-each-ref", "refs/remotes/").stdout == ""
+    assert path.stat().st_size == 0
     assert "stale-fetch" not in hint_ids(local)
 
 

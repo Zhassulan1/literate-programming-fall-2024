@@ -304,9 +304,11 @@ def detached_head(ctx: Context) -> Hint | None:
     superproject = repo.check("rev-parse", "--show-superproject-working-tree")
     if superproject.stdout.strip():
         return None
-    # Step 4: rebases and bisects detach HEAD as part of their work.
+    # Step 4: rebases and bisects detach HEAD as part of their work. `git
+    # switch` refuses to run during the other operations, and `git switch
+    # <branch>` also while unmerged paths exist.
     operations = repo.operations
-    if operations.rebase_dir_exists or operations.bisect:
+    if operations.combining or operations.bisect or repo.unmerged_paths:
         return None
     # Step 5: find the local branches that contain HEAD. Pass the format as a
     # single argument with no quote characters. `lstrip=2` gives the name that
@@ -579,7 +581,7 @@ def push_source(branch: str) -> str:
 
 
 # The current branch has commits but no upstream to push to.
-# <fragment id="cc-wa0iZk_9m1" following="5"></fragment>
+# <fragment id="cc-wa0iZk_9m1" following="7"></fragment>
 def no_upstream_branch(ctx: Context) -> Hint | None:
     repo = ctx.repo
     branch = repo.current_branch
@@ -602,6 +604,16 @@ def no_upstream_branch(ctx: Context) -> Hint | None:
     # branch that was usually deleted on purpose, which `unpushed-branches`
     # avoids too.
     if repo.config(f"branch.{branch}.merge") is not None:
+        return None
+    # As in `unpushed-branches`, a push to a remote branch of the same name
+    # that isn't an ancestor of HEAD would be rejected.
+    tracking = f"refs/remotes/origin/{branch}"
+    origin_branches = repo.check(
+        "for-each-ref", "--format=%(refname)", "refs/remotes/origin/"
+    ).stdout.splitlines()
+    if tracking in origin_branches and repo.flag(
+        "merge-base", "--is-ancestor", tracking, "HEAD"
+    ):
         return None
     return Hint(
         id="no-upstream-branch",
@@ -948,15 +960,10 @@ def changes_on_default_branch(ctx: Context) -> Hint | None:
     # Step 3: on a branch with no commits, `no-commits` applies instead.
     if repo.head_commit is None:
         return None
-    # Step 4: `git switch` refuses to run during these operations. Rebases and
-    # bisects detach HEAD, so step 1 already excludes them.
-    operations = repo.operations
-    if (
-        repo.unmerged_paths
-        or operations.merge
-        or operations.cherry_pick
-        or operations.revert
-    ):
+    # Step 4: `git switch` refuses to run during these operations. A rebase
+    # usually detaches HEAD, so step 1 excludes it, but a `git am` session
+    # leaves HEAD attached. During a bisect, `git switch` only warns.
+    if repo.unmerged_paths or repo.operations.combining:
         return None
     # Step 5: untracked files alone don't count; `git switch -c` carries them
     # along anyway.
@@ -1126,8 +1133,11 @@ def stash_entries(ctx: Context) -> Hint | None:
                 "`git stash apply 0`",
                 "The entry's changes are in your working directory, and the "
                 "entry stays in `git stash list`. If the changes conflict with "
-                "your files, Git either refuses to apply them or leaves "
-                "conflicts to resolve, and the entry stays in the list.",
+                "your files, Git may refuse to apply them, leave conflicts to "
+                "resolve, or, when an untracked file that the entry saved "
+                "already exists, apply only the tracked changes and report "
+                "that it could not restore the untracked files; in each case "
+                "the entry stays in the list.",
             ),
             Command(
                 "`git stash drop 0`",
