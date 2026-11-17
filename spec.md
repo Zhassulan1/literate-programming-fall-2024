@@ -1959,7 +1959,7 @@ The Conditions of the hints below assume this check and do not repeat it.
      before `stale-fetch`.
   10. Run `git remote remove origin` and verify that the hint is absent.
 
-<h4 data-gather="cc-75esxee47z cc-ki8lk258rw" id="cc-lpx36a973z">
+<h4 data-gather="cc-75esxee47z cc-p96xv0fgyp cc-ki8lk258rw" id="cc-lpx36a973z">
   Implementation of Fetch to see the newest remote commits?
 </h4>
 

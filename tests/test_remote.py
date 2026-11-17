@@ -406,6 +406,7 @@ def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 # `stale-fetch`
 # -------------
+# <fragment id="cc-p96xv0fgyp" following="3"></fragment>
 HOUR = 60 * 60
 DAY = 24 * HOUR
 
