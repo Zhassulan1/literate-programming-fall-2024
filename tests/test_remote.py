@@ -284,6 +284,8 @@ def clone_and_push(remote: Path, local: Path) -> None:
     git(local, "push", "-u", "origin", "main")
 
 
+# The test case for `unpushed-branches`; `clone_and_push` runs its step 1.
+# <fragment id="cc-7le06tkjax" following="1"></fragment>
 def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
     remote, local, single = make_temps(tmp_path_factory, 3)
     clone_and_push(remote, local)
@@ -426,6 +428,8 @@ def fetch_head(repo: Path) -> Path:
     )
 
 
+# The test case for `stale-fetch`.
+# <fragment id="cc-ki8lk258rw" following="7"></fragment>
 def test_stale_fetch(tmp_path_factory: pytest.TempPathFactory) -> None:
     remote, local, wt = make_temps(tmp_path_factory, 3)
     clone_and_push(remote, local)

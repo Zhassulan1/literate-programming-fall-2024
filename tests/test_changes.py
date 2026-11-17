@@ -713,6 +713,7 @@ def test_changes_on_default_branch(
 
 # `stash-entries`
 # ---------------
+# <fragment id="cc-8042r50a8e" following="5"></fragment>
 def test_stash_entries(tmp_path_factory: pytest.TempPathFactory) -> None:
     (repo,) = make_temps(tmp_path_factory, 1)
     config_user("user1", "user1@example.com")

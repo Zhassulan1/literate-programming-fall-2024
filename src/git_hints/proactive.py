@@ -1011,6 +1011,7 @@ def tracked_but_ignored(ctx: Context) -> Hint | None:
 # after switching branches. The hint is hidden as a whole during an operation,
 # a `git am` session, or a bisect, and while conflicts remain: applying a stash
 # then would interfere, and the hints explaining that state come first.
+# <fragment id="cc-zjtx879zrn" following="5"></fragment>
 def stash_entries(ctx: Context) -> Hint | None:
     repo = ctx.repo
     operations = repo.operations
@@ -1091,6 +1092,7 @@ def stash_entries(ctx: Context) -> Hint | None:
 
 # Other local branches
 # --------------------
+# <fragment id="cc-kg0ua2y237" following="1"></fragment>
 def unpushed_branches(ctx: Context) -> Hint | None:
     repo = ctx.repo
     operations = repo.operations
@@ -1222,6 +1224,7 @@ def unpushed_branches(ctx: Context) -> Hint | None:
 # that fetched nothing, leaves it empty. The hint is hidden as a whole during
 # an operation, a `git am` session, or a bisect, and while conflicts remain,
 # like `stash-entries`.
+# <fragment id="cc-75esxee47z" following="5"></fragment>
 STALE_FETCH_SECONDS = 24 * 60 * 60
 
 

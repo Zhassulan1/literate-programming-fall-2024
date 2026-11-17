@@ -1714,6 +1714,10 @@ The Conditions of the hints below assume this check and do not repeat it.
   7. Run `git bisect start` and verify that `stash-entries` is absent. Run `git
      bisect reset` as cleanup.
 
+<h4 data-gather="cc-zjtx879zrn cc-8042r50a8e" id="cc-opd6qw2341">
+  Implementation of Keep track of stash entries?
+</h4>
+
 ### Push your other local branches?
 
 * Hint: Do you want to
@@ -1855,6 +1859,10 @@ The Conditions of the hints below assume this check and do not repeat it.
   13. In `local`, run `git remote remove origin` and verify that the hint is
       absent.
 
+<h4 data-gather="cc-kg0ua2y237 cc-7le06tkjax" id="cc-sl31b89ea9">
+  Implementation of Push your other local branches?
+</h4>
+
 ### Fetch to see the newest remote commits?
 
 * Hint: Your local view of the remote may be out of date: `<age>`. Hints about
@@ -1947,6 +1955,10 @@ The Conditions of the hints below assume this check and do not repeat it.
      stash push`. Verify that `git-hints --all --ids-only` lists `stash-entries`
      before `stale-fetch`.
   10. Run `git remote remove origin` and verify that the hint is absent.
+
+<h4 data-gather="cc-75esxee47z cc-ki8lk258rw" id="cc-lpx36a973z">
+  Implementation of Fetch to see the newest remote commits?
+</h4>
 
 `git-hints explain -- git <command> [<args>...]`
 ------------------------------------------------
