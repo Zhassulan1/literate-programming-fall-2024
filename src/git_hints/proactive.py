@@ -30,7 +30,7 @@ from typing import Literal
 
 # ### Local
 from . import docs
-from .git import GitLaunchError, InspectionError, Repo, split_nul
+from .git import DIFF, GitLaunchError, InspectionError, Repo, split_nul
 from .hint import (
     Command,
     Hint,
@@ -568,7 +568,7 @@ def push_source(branch: str) -> str:
 
 
 # The current branch has commits but no upstream to push to.
-# <fragment id="cc-wa0iZk_9m1" following="3"></fragment>
+# <fragment id="cc-wa0iZk_9m1" following="5"></fragment>
 def no_upstream_branch(ctx: Context) -> Hint | None:
     repo = ctx.repo
     branch = repo.current_branch
@@ -584,6 +584,13 @@ def no_upstream_branch(ctx: Context) -> Hint | None:
         ok=(0, 128),
     )
     if upstream.returncode == 0 or "origin" not in repo.remotes:
+        return None
+    # An upstream that maps to no remote-tracking branch doesn't resolve, but
+    # it is configured. In a single-branch clone, pushing doesn't make it
+    # resolve; after the remote branch was deleted, pushing would recreate a
+    # branch that was usually deleted on purpose, which `unpushed-branches`
+    # avoids too.
+    if repo.config(f"branch.{branch}.merge") is not None:
         return None
     return Hint(
         id="no-upstream-branch",
@@ -863,7 +870,7 @@ def many_changed_files(ctx: Context) -> Hint | None:
         changed |= set(
             split_nul(
                 repo.check(
-                    "diff", *staged, "--name-only", "--no-renames", "-z"
+                    *DIFF, *staged, "--name-only", "--no-renames", "-z"
                 ).stdout
             )
         )
@@ -1102,10 +1109,10 @@ def stash_entries(ctx: Context) -> Hint | None:
             ),
             Command(
                 "`git stash apply 0`",
-                "`git status` lists the restored changes, and the entry stays "
-                "in `git stash list`. If the changes conflict with your "
-                "files, Git either refuses to apply them or leaves conflicts "
-                "to resolve, and the entry stays in the list.",
+                "The entry's changes are in your working directory, and the "
+                "entry stays in `git stash list`. If the changes conflict with "
+                "your files, Git either refuses to apply them or leaves "
+                "conflicts to resolve, and the entry stays in the list.",
             ),
             Command(
                 "`git stash drop 0`",

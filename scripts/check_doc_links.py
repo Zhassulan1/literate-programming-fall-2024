@@ -231,6 +231,16 @@ TRAILING_ANCHOR = re.compile(r" \[\[((?:[^\W\d]|:)[\w:.-]*)(?:, *.+)?\]\]$")
 # it.
 ATTRIBUTE_LINE = re.compile(r"\[(?:|[\w.#%{,\"'].*)\]")
 
+# A passthrough, `+++<text>+++` or `pass:[<text>]`, whose text Asciidoctor
+# outputs as written, so that `+++[[dco]]+++` in `MyFirstContribution` is no
+# anchor.
+PASSTHROUGH = re.compile(r"\+\+\+.*?\+\+\+|pass:[a-z,]*\[.*?\]")
+
+
+# The explicit anchors in `text`, outside passthroughs.
+def inline_anchors(text: str) -> list[str]:
+    return INLINE_ANCHOR.findall(PASSTHROUGH.sub("", text))
+
 
 # Whether `line` consists of one character repeated.
 def uniform(line: str) -> bool:
@@ -294,6 +304,17 @@ def section_title(lines: Sequence[str], i: int) -> tuple[str, int] | None:
 #   dash;
 # * `...` with an ellipsis, `(C)`, `(R)`, and `(TM)` with symbols, and `->`,
 #   `=>`, `<-`, and `<=` with arrows.
+#
+# Before these, a link macro, a URL or a target after `link:` or `mailto:`
+# followed by `[<text>]`, is replaced by its text, or by the target when the
+# text is empty, since the link element's tags are deleted from the rendered
+# title; `MyFirstContribution` has `https://discord.gg/GRFVkzgxRd[#discord] on
+# Discord` (`_discord_on_discord`).
+LINK_MACRO = re.compile(
+    r"(?P<prefix>link:|mailto:)?"
+    r"(?P<target>(?(prefix)|(?:https?|ftp|irc)://)[^\s\[\]]+)"
+    r"\[(?P<text>[^\]]*)\]"
+)
 CHARACTER_ATTRIBUTE = re.compile(
     r"\{(?:amp|apos|asterisk|backslash|backtick|blank|brvbar|caret|deg|empty"
     r"|endsb|gt|ldquo|litdd|lsquo|lt|nbsp|plus|pp|quot|rdquo|rsquo|startsb"
@@ -305,6 +326,7 @@ REPLACEMENT = re.compile(
 
 
 def render_title(title: str) -> str:
+    title = LINK_MACRO.sub(lambda link: link["text"] or link["target"], title)
     title = CHARACTER_ATTRIBUTE.sub("", title.replace("{sp}", " "))
     return REPLACEMENT.sub("", title)
 
@@ -346,7 +368,7 @@ def collect_ids(lines: Sequence[str]) -> list[str]:
             text, size = title
             # Each anchor in the title adds its ID; a trailing one takes the
             # place of the derived ID.
-            anchors = INLINE_ANCHOR.findall(text)
+            anchors = inline_anchors(text)
             if not anchored and TRAILING_ANCHOR.search(text) is None:
                 base = derive_id(render_title(INLINE_ANCHOR.sub("", text)))
                 derived, count = base, 2
@@ -365,7 +387,7 @@ def collect_ids(lines: Sequence[str]) -> list[str]:
             anchored = False
             i = close + 1
         else:
-            ids.update(dict.fromkeys(INLINE_ANCHOR.findall(line)))
+            ids.update(dict.fromkeys(inline_anchors(line)))
             anchored = anchored and (
                 line == ""
                 or line.startswith("//")

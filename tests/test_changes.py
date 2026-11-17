@@ -800,6 +800,7 @@ def test_stash_entries(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "1 entry" in block
     assert first in block
     assert "https://git-scm.com/docs/git-stash#_description" in block
+    assert "https://git-scm.com/docs/git-stash#_commands" in block
     assert commands(block) == [
         "git stash show -p --include-untracked 0",
         "git stash apply 0",

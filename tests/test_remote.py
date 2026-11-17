@@ -2,6 +2,7 @@
 # ========================================================================
 #
 # Each test follows the test case of the same name in the specification.
+import shutil
 from pathlib import Path
 
 import pytest
@@ -74,6 +75,7 @@ def test_push_ahead(tmp_path_factory: pytest.TempPathFactory) -> None:
     block = found["push-ahead"]
     assert "As of last fetch: " in block
     assert "git push origin HEAD:main" in commands(block)
+    assert "https://git-scm.com/docs/git-push#_description" in block
 
     make_repo(other, [["git", "clone", str(remote), str(other)]])
     commit_file(other, "other.txt", "other", "Add other.")
@@ -220,7 +222,29 @@ def test_diverged(tmp_path_factory: pytest.TempPathFactory) -> None:
     )
 
 
-# `behind` and `diverged` during a merge.
+# Return the IDs that `git-hints` shows during a `git am` session, which Git
+# records as a `rebase-apply` directory containing an `applying` file. Only
+# these paths tell `git-hints` that a session is in progress, so the test
+# creates them instead of stopping a real `git am`.
+def ids_during_am(repo: Path) -> list[str]:
+    rebase_apply = Path(
+        git(
+            repo,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "rebase-apply",
+        ).stdout.strip()
+    )
+    rebase_apply.mkdir()
+    try:
+        (rebase_apply / "applying").touch()
+        return hint_ids(repo)
+    finally:
+        shutil.rmtree(rebase_apply)
+
+
+# `behind` and `diverged` during a merge or a `git am` session.
 # <fragment id="cc-hv2RyOfXis" following="1"></fragment>
 def test_upstream_hints_suppressed_during_merge(
     tmp_path_factory: pytest.TempPathFactory,
@@ -234,6 +258,7 @@ def test_upstream_hints_suppressed_during_merge(
         assert "behind" not in ids
     finally:
         git(repo2, "merge", "--abort")
+    assert "behind" not in ids_during_am(repo2)
 
     commit_file(repo2, "bar.txt", "local\n", "Add local change.")
     git(repo2, "fetch")
@@ -245,11 +270,12 @@ def test_upstream_hints_suppressed_during_merge(
         assert "behind" not in ids
     finally:
         git(repo2, "merge", "--abort")
+    assert "diverged" not in ids_during_am(repo2)
 
 
 # `no-upstream-branch`
 # --------------------
-# <fragment id="cc-t7V1Ualy4j" following="1"></fragment>
+# <fragment id="cc-t7V1Ualy4j" following="3"></fragment>
 def test_no_upstream_branch(tmp_path_factory: pytest.TempPathFactory) -> None:
     first, second = make_temps(tmp_path_factory, 2)
     make_repo(first, [["git", "init", "-b", "main"]])
@@ -274,6 +300,12 @@ def test_no_upstream_branch(tmp_path_factory: pytest.TempPathFactory) -> None:
 
     git(first, "push", "-u", "origin", "feature-test")
     assert git(first, *upstream).stdout.strip() == "origin/feature-test"
+    assert "no-upstream-branch" not in hint_ids(first)
+
+    # The upstream stays configured after the remote branch is deleted.
+    git(first, "push", "origin", "--delete", "feature-test")
+    assert "[origin/feature-test: gone]" in git(first, "branch", "-vv").stdout
+    assert git(first, *upstream, check=False).returncode != 0
     assert "no-upstream-branch" not in hint_ids(first)
 
     git(first, "switch", "-c", "+plus")
@@ -399,6 +431,7 @@ def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
     git(single, "switch", "-c", "nf")
     commit_file(single, "nf.txt", "nf\n", "Add nf.")
     git(single, "push", "-u", "origin", "nf")
+    assert "no-upstream-branch" not in hint_ids(single)
     git(single, "switch", "main")
     assert (
         git(

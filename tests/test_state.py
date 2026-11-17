@@ -96,7 +96,7 @@ def test_not_inside_work_tree(tmp_path_factory: pytest.TempPathFactory) -> None:
 def test_inspection_environment(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
-    repo, remote = make_temps(tmp_path_factory, 2)
+    repo, remote, stat_only = make_temps(tmp_path_factory, 3)
     trace_dir = tmp_path_factory.mktemp("trace")
     config_user("user1", "user1@example.com")
     make_repo(remote, [["git", "init", "--bare", "-b", "main"]])
@@ -173,6 +173,28 @@ def test_inspection_environment(
     git(repo, "commit", "-m", "Add bar.")
     git(repo, "tag", "main")
     assert "push-ahead" in hint_ids(repo)
+
+    # With `diff.autoRefreshIndex` disabled and the index never refreshed,
+    # `git diff` would report files whose only change is their modification
+    # time.
+    names = ["a.txt", "b.txt", "c.txt", "d.txt"]
+    make_repo(
+        stat_only,
+        [
+            ["git", "init", "-b", "main"],
+            *(write(stat_only / name, name) for name in names),
+            ["git", "add", *names],
+            ["git", "commit", "-m", "Add four files."],
+            ["git", "config", "diff.autoRefreshIndex", "false"],
+        ],
+    )
+    for name in names:
+        old = (stat_only / name).stat().st_mtime - 3600
+        os.utime(stat_only / name, (old, old))
+    assert git(stat_only, "diff", "--name-only").stdout.split() == names
+    ids = hint_ids(stat_only)
+    assert "unstaged-changes" not in ids
+    assert "many-changed-files" not in ids
 
 
 def reported_failures(stderr: str) -> list[str]:
@@ -348,6 +370,11 @@ def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
         result = run_hints(local, "--all")
         assert result.returncode == 0
         assert result.stdout.splitlines()[0] == "Branch: detached HEAD"
+        assert (
+            "https://git-scm.com/docs/git-bisect"
+            "#_basic_bisect_commands_start_bad_good"
+            in blocks(result.stdout)["bisect-in-progress"]
+        )
         ids = hint_ids(local)
         assert "detached-head" not in ids
         assert "no-upstream-branch" not in ids
@@ -653,6 +680,10 @@ def test_operation_in_progress(
         check_operation_block(block, "merge")
         assert "foo.txt" in block
         assert "git add" in block
+        assert (
+            "https://git-scm.com/docs/git-merge#_how_to_resolve_conflicts"
+            in block
+        )
         assert "operation-in-progress" in hint_ids(repo)
 
         # Resolved but not yet continued.

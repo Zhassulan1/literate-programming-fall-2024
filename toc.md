@@ -20,6 +20,7 @@ Git hints tool
    5. [Repository state](tests/test_state.py)
    6. [Explain](tests/test_explain.py)
    7. [Documentation links](tests/test_docs.py)
+   8. [Documentation link check](tests/test_check_doc_links.py)
 4. Scripts
    1. [Documentation link check](scripts/check_doc_links.py)
 5. [Project 2 submission](submission.md)

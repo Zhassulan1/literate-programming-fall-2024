@@ -89,6 +89,15 @@ def inspection_env() -> dict[str, str]:
     return env
 
 
+# The start of every inspection `git diff`. With `diff.autoRefreshIndex`
+# enabled, whatever the user's configuration says, `git diff` compares the
+# contents of a file whose stat data changed, so a file whose only change is,
+# say, its modification time isn't reported as changed. Since
+# `GIT_OPTIONAL_LOCKS=0` keeps `git status` from saving its refresh, nothing
+# else would clear such a file from the comparison.
+DIFF = ("-c", "diff.autoRefreshIndex=true", "diff")
+
+
 # Run an inspection command. Standard input is closed, so no command can wait
 # for input.
 def run_git(
@@ -337,19 +346,19 @@ class Repo:
     @cached_property
     def unmerged_paths(self) -> list[str]:
         output = self.check(
-            "diff", "--name-only", "--diff-filter=U", "-z"
+            *DIFF, "--name-only", "--diff-filter=U", "-z"
         ).stdout
         return list(dict.fromkeys(split_nul(output)))
 
     # Unstaged edits to tracked files.
     @cached_property
     def has_unstaged_changes(self) -> bool:
-        return self.flag("diff", "--quiet")
+        return self.flag(*DIFF, "--quiet")
 
     # Staged changes, including staged files on a branch with no commits.
     @cached_property
     def has_staged_changes(self) -> bool:
-        return self.flag("diff", "--cached", "--quiet")
+        return self.flag(*DIFF, "--cached", "--quiet")
 
     # ### Operations
 

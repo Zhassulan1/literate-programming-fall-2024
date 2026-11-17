@@ -53,10 +53,11 @@ def listing(items: list[str]) -> str:
 # ### Fenced code blocks
 #
 # Lines inside a fenced code block are neither headings nor Markdown text, so
-# they are replaced by blank lines before anything else is read. A fence may
-# be indented by any amount, since list items indent their content. Three or
-# more backticks with another backtick later on the line open a code span, not
-# a fenced code block.
+# they are replaced by blank lines before headings and paragraphs are read;
+# `hint_references` still looks for manual URLs in them. A fence may be
+# indented by any amount, since list items indent their content. Three or more
+# backticks with another backtick later on the line open a code span, not a
+# fenced code block.
 _FENCE = re.compile(r"[ \t]*(`{3,}|~{3,})")
 
 
@@ -184,8 +185,9 @@ def paragraphs(lines: tuple[str, ...], first: int) -> Iterator[tuple[int, str]]:
 #
 # The hint sections use no other kind of link, such as reference links or
 # autolinks. So that a link this reader misses can't pass unchecked, a manual
-# URL outside every link destination and code span is reported as bare, and
-# the test fails on it.
+# URL outside every link destination and code span, including one in a link's
+# label or title or in a fenced code block, is reported as bare, and the test
+# fails on it.
 _BACKTICKS = re.compile("`+")
 _ESCAPE = re.compile(rf"\\([{re.escape(string.punctuation)}])")
 _LINK_TAIL = re.compile(
@@ -302,9 +304,11 @@ def inline(
 # Every link destination, code span, and bare manual URL in the hint sections
 # of `spec`, the text of `spec.md`.
 def hint_references(spec: str) -> list[Reference]:
+    lines = spec.splitlines()
+    unfenced = unfence(lines)
     found = [
         section
-        for section in sections(unfence(spec.splitlines()))
+        for section in sections(unfenced)
         if section.title in HINT_SECTIONS
     ]
     titles = sorted(section.title for section in found)
@@ -314,6 +318,12 @@ def hint_references(spec: str) -> list[Reference]:
     )
     references: list[Reference] = []
     for section in found:
+        # A line that `unfence` blanked belongs to a fenced code block, which
+        # is neither a link nor a code span.
+        for number in range(section.first, section.first + len(section.body)):
+            if unfenced[number - 1] != lines[number - 1]:
+                for bare in _BARE.finditer(lines[number - 1]):
+                    references.append(Reference("bare", bare[0], number))
         for first, text in paragraphs(section.body, section.first):
             covered: list[tuple[int, int]] = []
             for kind, value, start, end in inline(text, 0, len(text)):
@@ -389,6 +399,32 @@ def test_table_matches_spec() -> None:
             "documentation table:" + listing(unlisted)
         )
     assert not problems, "\n".join(problems)
+
+
+# The reader reports a manual URL in a fenced code block or in a link's title
+# as bare, so check 2 fails on it.
+def test_reader_finds_bare_urls() -> None:
+    spec = "\n".join(
+        [
+            "git-hints",
+            "---------",
+            "",
+            "```text",
+            f"{PREFIX}git-a#_a",
+            "```",
+            "",
+            f'[label]({PREFIX}git-b#_b "See {PREFIX}git-c#_c")',
+            "",
+            f"`{HINT_SECTIONS[1]}`",
+            "-" * (len(HINT_SECTIONS[1]) + 2),
+        ]
+    )
+    bare = [
+        (ref.value, ref.line)
+        for ref in hint_references(spec)
+        if ref.kind == "bare"
+    ]
+    assert bare == [(f"{PREFIX}git-a#_a", 5), (f"{PREFIX}git-c#_c", 8)]
 
 
 # Check 3: links come only from the table
