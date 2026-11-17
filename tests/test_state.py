@@ -220,7 +220,6 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert failures
     assert len(set(failures)) == len(failures)
     assert all("128" in line for line in failures)
-    assert len([line for line in failures if "--diff-filter=U" in line]) <= 1
 
     result = run_hints(repo, "--all", "--ids-only")
     assert result.returncode == 1

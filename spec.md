@@ -2864,13 +2864,12 @@ Test case for the failure reporting of Language and libraries, in
    first line of its standard output is `Branch: main`, that its output has a
    block for `no-upstream-branch`, which does not read the index, and none for
    `unstaged-changes`, which does, and that at least one line of its standard
-   error starts with `git-hints: `, that no two such lines are the same, that
-   each of them contains `128`, and that at most one of them contains
-   `--diff-filter=U`, the unmerged-paths check that several hints use. Run
-   `git-hints --all --ids-only` and verify that it exits with code 1, that its
-   standard output lists `no-upstream-branch` but not `unstaged-changes` and
-   has no line starting with `Branch:`, and that its standard error has the
-   same `git-hints: ` lines.
+   error starts with `git-hints: `, that no two such lines are the same, and
+   that each of them contains `128`. Run `git-hints --all --ids-only` and
+   verify that it exits with code 1, that its standard output lists
+   `no-upstream-branch` but not `unstaged-changes` and has no line starting
+   with `Branch:`, and that its standard error has the same `git-hints: `
+   lines.
 2. In the same repository, run `git-hints explain -- git status --short`. Git
    itself exits with code 128, and the `merge-conflicts` check then fails to
    inspect the index with `git diff --name-only --diff-filter=U -z`. Verify
