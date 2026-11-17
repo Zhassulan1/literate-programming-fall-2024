@@ -2842,6 +2842,18 @@ Test case for the failure reporting of Language and libraries, in
    not be found through that `PATH` either. For each run, verify that it exits
    with code 1, that its standard output is empty, and that its standard error
    is one line starting with `git-hints: `.
+4. Create a bare repository and a repository with one commit, add the bare
+   repository as `origin`, run `git push -u origin main`, then `git commit
+   --amend -m <any-message>`, and replace the contents of the index with
+   `garbage` as in step 1. Run `git-hints explain -- git push`: Git rejects the
+   push as a non-fast-forward, and both the integration-failure counter and the
+   `merge-conflicts` check then fail to inspect the index with `git diff
+   --name-only --diff-filter=U -z`. Verify that `git-hints` exits with code 1,
+   that its output has a block for `push-rejected-non-fast-forward`, and that
+   exactly one line of its standard error starts with `git-hints: `. Run
+   `git-hints --ids-only explain -- git push` and verify that it exits with
+   code 1, that its standard output lists `push-rejected-non-fast-forward`, and
+   that exactly one line of its standard error starts with `git-hints: `.
 
 Development strategy
 ====================

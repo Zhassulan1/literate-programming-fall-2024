@@ -177,7 +177,7 @@ def reported_failures(stderr: str) -> list[str]:
 
 
 def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
-    repo, empty = make_temps(tmp_path_factory, 2)
+    repo, empty, local, remote = make_temps(tmp_path_factory, 4)
     config_user("user1", "user1@example.com")
     make_repo(
         repo,
@@ -243,6 +243,32 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
         assert result.stdout == ""
         assert result.stderr.splitlines() == reported_failures(result.stderr)
         assert len(result.stderr.splitlines()) == 1
+
+    # The integration-failure counter and the `merge-conflicts` check share
+    # the failed inspection of the index, which is reported once.
+    make_repo(remote, [["git", "init", "--bare", "-b", "main"]])
+    make_repo(
+        local,
+        [
+            ["git", "init", "-b", "main"],
+            ["git", "remote", "add", "origin", str(remote)],
+            write(local / "foo.txt", "base"),
+            ["git", "add", "foo.txt"],
+            ["git", "commit", "-m", "Add foo."],
+            ["git", "push", "-u", "origin", "main"],
+            ["git", "commit", "--amend", "-m", "Add foo again."],
+        ],
+    )
+    (index,) = git_paths(local, "index")
+    index.write_bytes(b"garbage")
+    result = run_hints(local, "explain", "--", "git", "push")
+    assert result.returncode == 1
+    assert "push-rejected-non-fast-forward" in blocks(result.stdout)
+    assert len(reported_failures(result.stderr)) == 1
+    result = run_hints(local, "--ids-only", "explain", "--", "git", "push")
+    assert result.returncode == 1
+    assert "push-rejected-non-fast-forward" in result.stdout.splitlines()
+    assert len(reported_failures(result.stderr)) == 1
 
 
 # `detached-head`

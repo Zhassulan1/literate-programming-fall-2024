@@ -43,7 +43,7 @@ from .hint import (
     sort_hints,
     summarize,
 )
-from .proactive import Context, merge_conflicts
+from .proactive import Context, distinct_errors, merge_conflicts
 
 # Parsing the Git command
 # -----------------------
@@ -699,6 +699,8 @@ def explain(
             lines.append("No hints.")
     if lines:
         print("\n".join(lines))
-    for error in errors:
+    # The failure count and the checks may share a failed command; report it
+    # once.
+    for error in distinct_errors(errors):
         print(f"git-hints: {error}", file=sys.stderr)
     return 1 if errors else returncode

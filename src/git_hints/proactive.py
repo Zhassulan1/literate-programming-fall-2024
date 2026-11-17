@@ -24,11 +24,11 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypeVar
 
 # ### Local
 from .git import GitLaunchError, InspectionError, Repo, split_nul
@@ -1392,11 +1392,22 @@ def collect_hints(ctx: Context) -> tuple[list[Hint], list[InspectionError]]:
     with ThreadPoolExecutor(max_workers=len(CHECKS)) as executor:
         outcomes = list(executor.map(run_check, CHECKS))
     hints = [outcome for outcome in outcomes if isinstance(outcome, Hint)]
-    errors: dict[str, InspectionError] = {}
-    for outcome in outcomes:
-        if isinstance(outcome, InspectionError):
-            errors.setdefault(str(outcome), outcome)
-    return hints, list(errors.values())
+    errors = distinct_errors(
+        outcome for outcome in outcomes if isinstance(outcome, InspectionError)
+    )
+    return hints, errors
+
+
+ErrorT = TypeVar("ErrorT", bound=Exception)
+
+
+# Keep the first of the errors with the same message, in order: checks that
+# share a failed command each raise the same error for it.
+def distinct_errors(errors: Iterable[ErrorT]) -> list[ErrorT]:
+    unique: dict[str, ErrorT] = {}
+    for error in errors:
+        unique.setdefault(str(error), error)
+    return list(unique.values())
 
 
 # Fetching
