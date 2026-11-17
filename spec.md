@@ -1843,8 +1843,8 @@ of Keep track of stash entries?</h4>
      `, `. The exception is a root commit with an empty tree, as made by `git
      commit --allow-empty` in a new repository: `--simplify-by-decoration`
      hides it as unchanged, so a branch that points to it is not reported; this
-     case is a known limitation. Ignore empty lines, which root and merge
-     commits produce.
+     case is a known limitation. Ignore empty lines, which the other root
+     commits produce when no local branch points to them.
      `--decorate-refs=refs/heads/` keeps tags, `HEAD`, and remote-tracking
      branches out of the output; before Git 2.35 it applies to `%D` only
      together with `--decorate`. In a shallow repository the output can also
@@ -1875,7 +1875,12 @@ of Keep track of stash entries?</h4>
         lists `branch.<name>.merge` for it, because a push does not create that
         remote-tracking branch; exit code 1 means that no branch has one.
         `--name-only` prints only the names, because a value can contain a
-        newline.
+        newline. When `git for-each-ref --format=%(refname)
+        refs/remotes/origin/` lists `refs/remotes/origin/<branch>`, the push
+        updates that remote branch: report the branch only if `git merge-base
+        --is-ancestor refs/remotes/origin/<branch> refs/heads/<branch>` exits
+        0, and skip it on exit code 1, which means that the two have diverged
+        and the push would be rejected.
      2. With a remote upstream and `[ahead <k>]`, report it as `(ahead of
         <upstream> by <k>)`, using the remote name and the remote ref without
         `refs/heads/` in the command.
@@ -1915,38 +1920,45 @@ of Keep track of stash entries?</h4>
      because in detached HEAD no branch is excluded. Run `git switch main`.
   7. Run `git branch --track loc main`, commit a file on `loc`, and switch back
      to `main`. Verify that `git-hints --all` does not contain `loc (`.
-  8. Create branches `b1` through `b6` from `main`, each with one commit of its
+  8. Run `git switch -c side main`, commit `side.txt`, run `git push origin
+     side`, which records no upstream, commit `side2.txt`, and run `git switch
+     main`. Verify that the block names `side` with `(no upstream)` and
+     suggests `git push -u origin side`, because `origin/side` is an ancestor
+     of `side`. Run `git branch -f side main`, commit `side3.txt` on `side`,
+     and switch back to `main`; verify that `git-hints --all` does not contain
+     `side (`, because the push would be rejected.
+  9. Create branches `b1` through `b6` from `main`, each with one commit of its
      own, and switch back to `main`. Run `git-hints --all` and verify that the
      block names `b1` through `b5` but not `b6` or `feature`, and contains `and
      2 more`.
-  9. Run `git push -u origin b1` and `git push origin --delete b1`, so that
-     `git branch -vv` shows `[origin/b1: gone]`. Run `git push -u origin b2`,
-     `git switch b2`, `git commit --amend -m "Change b2."`, and `git switch
-     main`, so that `git branch -vv` shows `[origin/b2: ahead 1, behind 1]`.
-     Verify that `git-hints --all` contains neither `b1 (` nor `b2 (`.
-  10. On `main`, commit a change to `foo.txt`; on a new branch `clash` from the
+  10. Run `git push -u origin b1` and `git push origin --delete b1`, so that
+      `git branch -vv` shows `[origin/b1: gone]`. Run `git push -u origin b2`,
+      `git switch b2`, `git commit --amend -m "Change b2."`, and `git switch
+      main`, so that `git branch -vv` shows `[origin/b2: ahead 1, behind 1]`.
+      Verify that `git-hints --all` contains neither `b1 (` nor `b2 (`.
+  11. On `main`, commit a change to `foo.txt`; on a new branch `clash` from the
       previous commit, commit a conflicting change. Run `git merge clash` on
       `main` and require a nonzero exit code. Verify that `unpushed-branches` is
       absent. Run `git merge --abort` as cleanup, including if an assertion
       fails.
-  11. Run `git clone --single-branch <remote> <single>`. In `single`, run `git
+  12. Run `git clone --single-branch <remote> <single>`. In `single`, run `git
       switch -c nf`, commit `nf.txt`, run `git push -u origin nf`, and run `git
       switch main`. Verify that `git for-each-ref --format='%(upstream)'
       refs/heads/nf` prints an empty line and that `unpushed-branches` is absent
       in `single`.
-  12. In `local`, run `git switch clash`, then `git rebase main`, and require a
+  13. In `local`, run `git switch clash`, then `git rebase main`, and require a
       nonzero exit code, because the commits conflict. Verify that
       `unpushed-branches` is absent while the rebase is stopped. Run `git
       rebase --abort` and `git switch main` as cleanup, including if an
       assertion fails.
-  13. In `local`, run `git switch -c +plus main`, commit `plus.txt`, and run
+  14. In `local`, run `git switch -c +plus main`, commit `plus.txt`, and run
       `git switch main`. Verify that the block names `+plus` with `(no
       upstream)` and suggests `git push -u origin refs/heads/+plus`, because Git
       reads `git push -u origin +plus` as a forced push of a branch `plus`. Run
       the suggested command and verify that `git-hints --all` does not contain
       `+plus (`. Commit another file on `+plus`, switch back to `main`, and
       verify that the hint suggests `git push origin refs/heads/+plus`.
-  14. In `local`, run `git remote remove origin` and verify that the hint is
+  15. In `local`, run `git remote remove origin` and verify that the hint is
       absent.
 
 <h4 id="cc-zcMdEzgNbb" data-gather="cc-mRIYwnNceC cc-LJhA9bcV9b">Implementation
@@ -1989,7 +2001,10 @@ of Push your other local branches?</h4>
      is not seen.
   3. Skip the hint when neither file exists. Otherwise use the existing file
      with the newest modification time. `FETCH_HEAD` records fetch attempts;
-     remote-tracking ref updates made without a fetch do not count.
+     remote-tracking ref updates made without a fetch do not count. An error
+     other than a missing file when either file is examined, such as a denied
+     permission, is an unexpected inspection failure, which Language and
+     libraries describes.
   4. If that file is empty, the hint applies with `the last fetch failed or
      fetched nothing`: a fetch that cannot reach its remote and a fetch that
      fetches nothing both leave `FETCH_HEAD` empty. Otherwise the hint applies
@@ -2031,7 +2046,8 @@ of Push your other local branches?</h4>
      fetch succeeds but fetches nothing, so only the successful `--fetch` skips
      the hint. Verify that `path` is empty and that the output contains neither
      `Fetch failed` nor a `stale-fetch` block. Restore the URL with `git remote
-     set-url origin <remote>`.
+     set-url origin <remote>`, run `git fetch`, and verify that `path` is not
+     empty.
   7. Set the age to two days and point `origin` at a missing directory with
      `git remote set-url origin <missing>`. Run `git-hints --all --fetch`;
      verify that the output contains `Fetch failed; showing results as of last
@@ -2656,10 +2672,8 @@ Documentation links
 -------------------
 
 Hint structure, item 3, asks each hint to link to the passage of the official
-Git manual that supports it. The implementation notes say that the current
-links are mostly whole pages and that no CodeChat Editor markup was added. This
-section defines how links are chosen, recorded, and checked, and how each hint
-section is connected with its code.
+Git manual that supports it. This section defines how links are chosen,
+recorded, and checked, and how each hint section is connected with its code.
 
 ### Choosing and deriving anchors
 
@@ -2722,10 +2736,10 @@ anchor that works on the served release, record the expected replacement in
 its entry of the documentation table, and update the specification and the
 table together once the new release is served.
 
-Applying these rules to a hint changes its link in the hint section of this
-specification first and then its entry in the documentation table. In this
-phase every link in the hint sections, including the URLs that test cases name
-in code spans, is chosen again by these rules.
+Every link in the hint sections, including the URLs that test cases name in
+code spans, is chosen by these rules. Applying them to a hint changes its link
+in the hint section of this specification first and then its entry in the
+documentation table.
 
 ### Documentation table
 
@@ -2750,16 +2764,22 @@ maintenance script re-checks the anchors.
 Test case, in `tests/test_docs.py`: read the documentation table and `spec.md`
 from the repository root, without using the network, and check that:
 
-1. each URL in the table starts with `https://git-scm.com/docs/`;
-2. each URL in the table appears in the hint sections of this specification,
-   those under `git-hints` and `git-hints explain`, as a Markdown link or in a
-   code span, and each `https://git-scm.com/docs/` URL of a Markdown link in
-   those sections is in the table, compared as whole strings;
+1. each URL in the table, including an entry's expected replacement, starts
+   with `https://git-scm.com/docs/`;
+2. the URL of each entry, not its expected replacement, appears in the hint
+   sections of this specification, those under `git-hints` and `git-hints
+   explain`, as a Markdown link or in a code span, and each
+   `https://git-scm.com/docs/` URL of a Markdown link in those sections is in
+   the table, compared as whole strings; a `https://git-scm.com/docs/` URL in
+   those sections outside a Markdown link and a code span fails the check;
 3. no module in `src/git_hints/` other than `docs.py` contains a
    `https://git-scm.com/docs/` string, so every link comes from the table;
-4. each entry's record has the field its kind requires: a version for a section
-   anchor, a date for an option ID or a text fragment, and a reason for a whole
-   page.
+4. each entry's kind fits its URL, which has no fragment for a whole page, a
+   fragment starting with `:~:text=` for a text fragment, one starting with
+   `Documentation/` for an option ID, and any other for a section anchor; and
+   its record has the field its kind requires: a version for a section anchor,
+   a date for an option ID or a text fragment, and a reason for a whole page;
+5. no two entries have the same URL.
 
 Check 2 can pass only when every link the code shows is in a hint section of
 this specification, including the `git-init` link of `not-a-repo` and the
