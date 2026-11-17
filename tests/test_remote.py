@@ -342,6 +342,21 @@ def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
     _, found = all_blocks(local)
     assert "loc (" not in collapse(found["unpushed-branches"])
 
+    git(local, "switch", "-c", "side", "main")
+    commit_file(local, "side.txt", "side\n", "Add side.")
+    git(local, "push", "origin", "side")
+    commit_file(local, "side2.txt", "side\n", "Add another side file.")
+    git(local, "switch", "main")
+    _, found = all_blocks(local)
+    assert "side (no upstream)" in collapse(found["unpushed-branches"])
+    assert "git push -u origin side" in commands(found["unpushed-branches"])
+    git(local, "branch", "-f", "side", "main")
+    git(local, "switch", "side")
+    commit_file(local, "side3.txt", "side\n", "Add a diverging side file.")
+    git(local, "switch", "main")
+    _, found = all_blocks(local)
+    assert "side (" not in collapse(found["unpushed-branches"])
+
     for number in range(1, 7):
         branch = f"b{number}"
         git(local, "switch", "-c", branch, "main")

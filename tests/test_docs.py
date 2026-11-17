@@ -4,10 +4,11 @@
 # Each test follows one check of the test case in "Documentation table",
 # under "Documentation links" in the specification: the table in
 # `src/git_hints/docs.py` and the hint sections of `spec.md` name the same
-# links, every link a hint shows comes from the table, and each entry carries
-# the verification record its kind requires. The tests read only files of this
-# repository and never use the network; whether the anchors exist on the Git
-# website is checked by hand with `scripts/check_doc_links.py`.
+# links, every link a hint shows comes from the table, and each passage has
+# one entry, whose kind fits its URL and whose verification record is the one
+# that kind requires. The tests read only files of this repository and never
+# use the network; whether the anchors exist on the Git website is checked by
+# hand with `scripts/check_doc_links.py`.
 import re
 import string
 from collections.abc import Iterator
@@ -16,7 +17,7 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
-from git_hints.docs import TABLE
+from git_hints.docs import TABLE, Kind
 
 # The repository root is the parent of this file's directory, so the tests
 # find `spec.md` and the package sources whatever the working directory is.
@@ -416,6 +417,21 @@ def test_only_docs_module_has_urls() -> None:
 # Check 4: verification records
 # -----------------------------
 #
+# The kind decides how an entry is verified, so it must fit the URL: a whole
+# page has no fragment, a text fragment starts with `:~:text=`, an option ID
+# is the website's `Documentation/<page>.txt-<option>`, and any other
+# fragment is a section anchor.
+def kind_of(url: str) -> Kind:
+    _, hash_mark, fragment = url.partition("#")
+    if not hash_mark:
+        return "page"
+    if fragment.startswith(":~:text="):
+        return "text"
+    if fragment.startswith("Documentation/"):
+        return "option"
+    return "section"
+
+
 # A section anchor records the Git version it was verified against, an option
 # ID or a text fragment records the date of its check against the live page,
 # and a whole page records why no passage fits.
@@ -444,6 +460,11 @@ def test_records_have_required_fields() -> None:
         if field is None:
             problems.append(f"{entry.url}: unknown kind {entry.kind!r}")
             continue
+        if kind_of(entry.url) != entry.kind:
+            problems.append(
+                f"{entry.url}: kind {entry.kind!r} doesn't fit the URL, "
+                f"whose form is {kind_of(entry.url)!r}"
+            )
         value = getattr(entry, field)
         if not isinstance(value, str) or not value.strip():
             problems.append(f"{entry.url}: kind {entry.kind!r} needs {field}")
@@ -452,6 +473,20 @@ def test_records_have_required_fields() -> None:
                 f"{entry.url}: checked {value!r} isn't a YYYY-MM-DD date"
             )
     assert not problems, (
-        "These entries of the documentation table don't have the record "
-        "their kind requires:" + listing(problems)
+        "These entries of the documentation table don't have the kind or "
+        "the record their URL requires:" + listing(problems)
+    )
+
+
+# Check 5: one entry per passage
+# ------------------------------
+#
+# Hints that link to the same passage share its entry, so a URL that occurs
+# twice is a second record of one link, which could disagree with the first.
+def test_entries_are_unique() -> None:
+    urls = [entry.url for entry in TABLE]
+    repeated = sorted({url for url in urls if urls.count(url) > 1})
+    assert not repeated, (
+        "These URLs have more than one entry in the documentation table:"
+        + listing(repeated)
     )

@@ -1127,7 +1127,7 @@ def stash_entries(ctx: Context) -> Hint | None:
 
 # Other local branches
 # --------------------
-# <fragment id="cc-mRIYwnNceC" following="1"></fragment>
+# <fragment id="cc-mRIYwnNceC" following="3"></fragment>
 def unpushed_branches(ctx: Context) -> Hint | None:
     repo = ctx.repo
     operations = repo.operations
@@ -1181,6 +1181,15 @@ def unpushed_branches(ctx: Context) -> Hint | None:
         for line in configured.stdout.splitlines()
         if line
     }
+    # A branch without an upstream is pushed to the branch of the same name
+    # on `origin`. When the remote already has that branch, as of the last
+    # fetch, and it isn't an ancestor of the local one, the two have diverged
+    # and the push would be rejected.
+    origin_branches = set(
+        repo.check(
+            "for-each-ref", "--format=%(refname)", "refs/remotes/origin/"
+        ).stdout.splitlines()
+    )
     refs = repo.check(
         "for-each-ref",
         "--format=%(refname:lstrip=2) %(upstream:remotename) "
@@ -1197,6 +1206,11 @@ def unpushed_branches(ctx: Context) -> Hint | None:
             continue
         if not upstream:
             if "origin" not in remotes or branch in configured_upstreams:
+                continue
+            tracking = f"refs/remotes/origin/{branch}"
+            if tracking in origin_branches and repo.flag(
+                "merge-base", "--is-ancestor", tracking, f"refs/heads/{branch}"
+            ):
                 continue
             label = "no upstream"
             command = f"git push -u origin {shell_quote(push_source(branch))}"
