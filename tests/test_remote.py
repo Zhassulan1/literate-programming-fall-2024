@@ -2,12 +2,15 @@
 # ========================================================================
 #
 # Each test follows the test case of the same name in the specification.
+import os
+import time
 from pathlib import Path
 
 import pytest
 from git_test_tools import (
     all_blocks,
     append,
+    blocks,
     collapse,
     commands,
     commit_file,
@@ -270,13 +273,20 @@ def test_no_upstream_branch(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 # `unpushed-branches`
 # -------------------
-def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
-    remote, local, single = make_temps(tmp_path_factory, 3)
+#
+# Step 1 of the test case, which the `stale-fetch` test reuses: clone an empty
+# bare `remote` into `local`, then commit `foo.txt` and push `main`.
+def clone_and_push(remote: Path, local: Path) -> None:
     config_user("user1", "user1@example.com")
     make_repo(remote, [["git", "init", "--bare", "-b", "main"]])
     git(local.parent, "clone", str(remote), str(local))
     commit_file(local, "foo.txt", "base\n", "Add foo.")
     git(local, "push", "-u", "origin", "main")
+
+
+def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
+    remote, local, single = make_temps(tmp_path_factory, 3)
+    clone_and_push(remote, local)
 
     assert "unpushed-branches" not in hint_ids(local)
     git(local, "branch", "topic")
@@ -390,6 +400,107 @@ def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
 
     git(local, "remote", "remove", "origin")
     assert "unpushed-branches" not in hint_ids(local)
+
+
+# `stale-fetch`
+# -------------
+HOUR = 60 * 60
+DAY = 24 * HOUR
+
+
+# Set a file's modification time `seconds` into the past.
+def set_age(path: Path, seconds: float) -> None:
+    t = time.time() - seconds
+    os.utime(path, (t, t))
+
+
+def fetch_head(repo: Path) -> Path:
+    return Path(
+        git(
+            repo,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "FETCH_HEAD",
+        ).stdout.strip()
+    )
+
+
+def test_stale_fetch(tmp_path_factory: pytest.TempPathFactory) -> None:
+    remote, local, wt = make_temps(tmp_path_factory, 3)
+    clone_and_push(remote, local)
+    path = fetch_head(local)
+
+    # The clone and the push wrote no `FETCH_HEAD`.
+    assert not path.exists()
+    assert "stale-fetch" not in hint_ids(local)
+
+    git(local, "fetch")
+    assert path.stat().st_size > 0
+    assert "stale-fetch" not in hint_ids(local)
+
+    set_age(path, 2 * DAY)
+    assert "stale-fetch" in hint_ids(local)
+    result = run_hints(local, "--all")
+    assert result.returncode == 0, result.stderr
+    output = collapse(result.stdout)
+    assert "2 days ago" in output
+    assert "git fetch --all" in output
+    assert "https://git-scm.com/docs/git-fetch#_description" in output
+    set_age(path, 47 * HOUR)
+    result = run_hints(local, "--all")
+    assert result.returncode == 0, result.stderr
+    assert "1 day ago" in collapse(result.stdout)
+    set_age(path, 23 * HOUR)
+    assert "stale-fetch" not in hint_ids(local)
+
+    # A push is not a fetch.
+    set_age(path, 2 * DAY)
+    git(local, "switch", "-c", "feature")
+    commit_file(local, "bar.txt", "feature\n", "Add feature file.")
+    git(local, "push", "-u", "origin", "feature")
+    assert "stale-fetch" in hint_ids(local)
+    git(local, "switch", "main")
+
+    assert "stale-fetch" not in hint_ids(local, "--fetch")
+
+    set_age(path, 2 * DAY)
+    git(local, "remote", "set-url", "origin", str(local.parent / "missing"))
+    result = run_hints(local, "--all", "--fetch")
+    assert result.returncode == 0, result.stderr
+    assert FETCH_FAILED in result.stdout.splitlines()
+    found = blocks(result.stdout)
+    assert "the last fetch failed or fetched nothing" in collapse(
+        found["stale-fetch"]
+    )
+    assert path.stat().st_size == 0
+    git(local, "remote", "set-url", "origin", str(remote))
+    git(local, "fetch")
+
+    # Only the main worktree's `FETCH_HEAD` exists until `wt` fetches. This
+    # runs `git-hints` in a linked worktree, which `make_repo()` did not
+    # create.
+    set_age(path, 2 * DAY)
+    git(local, "worktree", "add", str(wt), "feature")
+    assert not fetch_head(wt).exists()
+    assert "stale-fetch" in hint_ids(wt)
+    git(wt, "fetch")
+    assert "stale-fetch" not in hint_ids(wt)
+    assert "stale-fetch" in hint_ids(local)
+
+    git(local, "bisect", "start")
+    try:
+        assert "stale-fetch" not in hint_ids(local)
+    finally:
+        git(local, "bisect", "reset")
+    append(local / "foo.txt", "more\n")()
+    git(local, "stash", "push")
+    ids = hint_ids(local)
+    assert "stash-entries" in ids and "stale-fetch" in ids
+    assert ids.index("stash-entries") < ids.index("stale-fetch")
+
+    git(local, "remote", "remove", "origin")
+    assert "stale-fetch" not in hint_ids(local)
 
 
 # `--fetch`
