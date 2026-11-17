@@ -271,7 +271,7 @@ Hint structure
    ID: behind
    Priority: workflow
    As of last fetch: Do you want to pull [1] the newest remote commits before you start editing? Your branch does not contain remote commits that were known at the last fetch.
-   [1] pull: Fetches commits from the remote and integrates them into your current branch https://git-scm.com/docs/git-pull
+   [1] pull: Fetches commits from the remote and integrates them into your current branch https://git-scm.com/docs/git-pull#_description
    Git stage: You are working in the local repo, which is missing commits that the remote repo already has.
    Command: git pull
    Result: git status reports that your branch is up to date with its upstream.
@@ -295,7 +295,7 @@ The Conditions of the hints below assume this check and do not repeat it.
 ### Stage files
 
 * Hint: Do you want to
-  [stage](https://git-scm.com/docs/git-add "Also called the index; select which changed files to store in a commit")
+  [stage](https://git-scm.com/docs/git-add#_description "Also called the index; select which changed files to store in a commit")
   files?
 
 * Git stage: Your edits are in the working directory; Git won't put them in a
@@ -332,7 +332,7 @@ The Conditions of the hints below assume this check and do not repeat it.
 ### Push
 
 * Hint: Do you want to
-  [push](https://git-scm.com/docs/git-push "Uploads the latest changes of your local repository (repo) to a remote repository so other collaborators can download your work.")?
+  [push](https://git-scm.com/docs/git-push#_description "Uploads the latest changes of your local repository (repo) to a remote repository so other collaborators can download your work.")?
 
 * Git stage: Your local repository has commits that are not contained in its
   upstream tracking branch.
@@ -403,9 +403,9 @@ The Conditions of the hints below assume this check and do not repeat it.
 ### Clone a repository
 
 * Hint: Would you like to clone a
-  [repository](https://git-scm.com/docs/git-clone "Clone a repository into a new directory")?
+  [repository](https://git-scm.com/docs/git-clone#_description "Clone a repository into a new directory")?
   To start a new project instead,
-  [initialize](https://git-scm.com/docs/git-init "Create an empty Git repository")
+  [initialize](https://git-scm.com/docs/git-init#_description "Create an empty Git repository")
   one.
 
 * Git stage: You are not inside a Git repository; you need to either clone or
@@ -442,9 +442,9 @@ The Conditions of the hints below assume this check and do not repeat it.
 ### Keep unstaged changes out of this commit?
 
 * Hint: Do you want to keep unstaged changes out of this commit?
-  [git commit](https://git-scm.com/docs/git-commit "Records the staged changes in a new commit.")
+  [git commit](https://git-scm.com/docs/git-commit#_description "Records the staged changes in a new commit.")
   records staged changes only. Review the staged changes with
-  [git diff](https://git-scm.com/docs/git-diff "Shows changes staged for the next commit").
+  [git diff](https://git-scm.com/docs/git-diff#Documentation/git-diff.txt-gitdiffoptions--cached--merge-basecommit--path "Shows changes staged for the next commit").
 
 * Git stage: Some of your edits are in the staging area and will be included in
   the next commit; other edits remain in the working directory and will not be
@@ -506,8 +506,8 @@ The Conditions of the hints below assume this check and do not repeat it.
         with `git diff --cached` and committing the selected changes with `git
         commit -m "message"`. Confirm the two hints are distinct and include the
         corresponding official Git documentation links, including
-        `https://git-scm.com/docs/git-diff` and
-        `https://git-scm.com/docs/git-commit`.
+        `https://git-scm.com/docs/git-diff#Documentation/git-diff.txt-gitdiffoptions--cached--merge-basecommit--path`
+        and `https://git-scm.com/docs/git-commit#_description`.
 * Conflict suppression test:
 
   1. The autouse `git_setup` fixture provides the isolated environment. Create
@@ -533,7 +533,7 @@ The Conditions of the hints below assume this check and do not repeat it.
 ### Branch is behind upstream
 
 * Hint: Do you want to
-  [pull](https://git-scm.com/docs/git-pull "Fetches commits from the remote and integrates them into your current branch")
+  [pull](https://git-scm.com/docs/git-pull#_description "Fetches commits from the remote and integrates them into your current branch")
   the newest remote commits before you start editing? Your branch does not
   contain remote commits that were known at the last fetch.
 
@@ -594,9 +594,9 @@ The Conditions of the hints below assume this check and do not repeat it.
 
 * Hint: Your branch has diverged from its upstream. Do you want to integrate the
   remote commits with
-  [git pull](https://git-scm.com/docs/git-pull "Fetches and integrates remote commits; --rebase replays yours on top of them.")
+  [git pull](https://git-scm.com/docs/git-pull#_description "Fetches and integrates remote commits; --rebase replays yours on top of them.")
   and then share yours with
-  [git push](https://git-scm.com/docs/git-push "Uploads local commits to the remote branch.")?
+  [git push](https://git-scm.com/docs/git-push#_note_about_fast_forwards "Uploads local commits to the remote branch.")?
 
 * Git stage: You are working in the local repo, which has commits that the
   remote lacks while the remote has commits that your local repo lacks.
@@ -641,7 +641,7 @@ The Conditions of the hints below assume this check and do not repeat it.
 ### Configure an upstream branch?
 
 * Hint: Do you want to configure an
-  [upstream branch](https://git-scm.com/docs/git-branch "A remote branch that your local branch tracks")
+  [upstream branch](https://git-scm.com/docs/git-push#UPSTREAM-BRANCHES "A remote branch that your local branch tracks")
   before pushing?
 
 * Git stage: Your current local branch has no upstream branch configured, so Git
@@ -698,9 +698,9 @@ The Conditions of the hints below assume this check and do not repeat it.
 ### Review staged changes before committing?
 
 * Hint: Would you like to review your
-  [staged changes](https://git-scm.com/docs/git-diff "Show changes staged for the next commit")
+  [staged changes](https://git-scm.com/docs/git-diff#Documentation/git-diff.txt-gitdiffoptions--cached--merge-basecommit--path "Show changes staged for the next commit")
   before committing? Use
-  [git commit](https://git-scm.com/docs/git-commit "Record the staged changes in a new commit")
+  [git commit](https://git-scm.com/docs/git-commit#_description "Record the staged changes in a new commit")
   when they are ready.
 
 * Git stage: You have changes in the staging area that will be included in the
@@ -788,8 +788,8 @@ The Conditions of the hints below assume this check and do not repeat it.
 ### Stage or ignore untracked files
 
 * Hint: Do you need to
-  [stage](https://git-scm.com/docs/git-add "Add files to the staging area") or
-  [ignore](https://git-scm.com/docs/gitignore "Specify intentionally untracked files that Git should ignore")
+  [stage](https://git-scm.com/docs/git-add#_description "Add files to the staging area") or
+  [ignore](https://git-scm.com/docs/gitignore#_description "Specify intentionally untracked files that Git should ignore")
   untracked files?
 
 * Git stage: Your working directory contains untracked files that can be staged
@@ -888,7 +888,7 @@ The Conditions of the hints below assume this check and do not repeat it.
 
 * Hint: More than half of the tracked files in this repository have changes.
   Would you like to review the changes and
-  [commit](https://git-scm.com/docs/git-commit "Records staged changes as a new commit in the local repository")
+  [commit](https://git-scm.com/docs/git-commit#_description "Records staged changes as a new commit in the local repository")
   the work you want to save?
 
 * Git stage: Changes to tracked files may exist in the working directory,
@@ -1157,7 +1157,7 @@ The Conditions of the hints below assume this check and do not repeat it.
 ### Bisect in progress
 
 * Hint: A
-  [bisect](https://git-scm.com/docs/git-bisect "Use binary search to find the commit that introduced a bug")
+  [bisect](https://git-scm.com/docs/git-bisect#_basic_bisect_commands_start_bad_good "Use binary search to find the commit that introduced a bug")
   is in progress. Git checks out commits for you to test, so HEAD stays
   detached until the bisect ends.
 
@@ -1180,7 +1180,7 @@ The Conditions of the hints below assume this check and do not repeat it.
 
 * Hint: Your current branch has no commits yet. Prepare the files you want to
   save, then create your first
-  [commit](https://git-scm.com/docs/git-commit "Record staged changes as a new commit").
+  [commit](https://git-scm.com/docs/git-commit#_description "Record staged changes as a new commit").
 
 * Git stage: You are preparing the first saved snapshot on the current local
   branch; edits in the working directory must enter the staging area before a
@@ -1190,7 +1190,7 @@ The Conditions of the hints below assume this check and do not repeat it.
 
   * If nothing is staged, show `git status` to review the working directory and
     explain that selected files can be staged using
-    [git add](https://git-scm.com/docs/git-add "Add selected file contents to the staging area"):
+    [git add](https://git-scm.com/docs/git-add#_description "Add selected file contents to the staging area"):
     `git add <files to stage>`. Expected result: selected files are listed under
     "Changes to be committed" by `git status`. Do not show a `git commit`
     command until staged changes exist.
@@ -1245,8 +1245,8 @@ The Conditions of the hints below assume this check and do not repeat it.
   3. Run `git-hints --all`. Require exit code 0, the first output line exactly
      equal to `Branch: main`, and no crash. Verify that the `no-commits` output
      block contains `git status`, `git add`, and
-     `https://git-scm.com/docs/git-add`. Verify that this block does not contain
-     `git commit`.
+     `https://git-scm.com/docs/git-add#_description`. Verify that this block
+     does not contain `git commit`.
   4. Run `git-hints --all --ids-only`. Verify that `no-commits` is present and
      `detached-head`, `many-changed-files`, `staged-changes`, and
      `no-upstream-branch` are absent.
@@ -1260,9 +1260,9 @@ The Conditions of the hints below assume this check and do not repeat it.
      while `git rev-parse --verify --quiet HEAD` still exits 1.
   7. Run `git-hints --all` and require exit code 0. In the `no-commits` output
      block, check for `git commit -m "Initial commit"` and
-     `https://git-scm.com/docs/git-commit`. Run `git-hints --all --ids-only`;
-     verify that `no-commits` and `staged-changes` are present, while
-     `detached-head` and `many-changed-files` are absent.
+     `https://git-scm.com/docs/git-commit#_description`. Run `git-hints --all
+     --ids-only`; verify that `no-commits` and `staged-changes` are present,
+     while `detached-head` and `many-changed-files` are absent.
   8. Run `git commit -m "Initial commit"` and require exit code 0.
   9. Preconditions: `git rev-parse --verify --quiet HEAD` exits 0 and prints a
      commit object ID; `git symbolic-ref --quiet --short HEAD` exits 0 and
@@ -1288,7 +1288,7 @@ The Conditions of the hints below assume this check and do not repeat it.
 
 * Hint: You have uncommitted changes on `<branch>`, the branch your remote
   treats as its default. Do you want to make them on a new
-  [branch](https://git-scm.com/docs/git-switch "Create a new branch at the current commit and switch to it")
+  [branch](https://git-scm.com/docs/git-switch#_description "Create a new branch at the current commit and switch to it")
   instead?
 
 * Git stage: Your edits are in the working directory or staging area of the
@@ -1347,9 +1347,9 @@ The Conditions of the hints below assume this check and do not repeat it.
   3. Change `foo.txt` to `xxxy` without staging it. Precondition: `git diff
      --quiet` exits 1. Run `git-hints --all` and require exit code 0. Check the
      output block for ID `changes-on-default-branch`: it contains `Priority:
-     workflow`, `git switch -c`, and `https://git-scm.com/docs/git-switch`. Run
-     `git-hints --all --ids-only` and verify that `changes-on-default-branch` is
-     present.
+     workflow`, `git switch -c`, and
+     `https://git-scm.com/docs/git-switch#_description`. Run `git-hints --all
+     --ids-only` and verify that `changes-on-default-branch` is present.
   4. Run `git add foo.txt`. Preconditions: `git diff --quiet` exits 0 and `git
      diff --cached --quiet` exits 1. Run `git-hints --all --ids-only` and verify
      that `changes-on-default-branch` is still present.
@@ -1383,15 +1383,18 @@ The Conditions of the hints below assume this check and do not repeat it.
 
   * Conflicts remain: "Some files have conflicts. Open each conflicted file,
     choose the final content, then
-    [stage](https://git-scm.com/docs/git-add "Marks a resolved file so Git knows the conflict is fixed")
+    [stage](https://git-scm.com/docs/git-merge#_how_to_resolve_conflicts "Marks a resolved file so Git knows the conflict is fixed")
     it. When no conflicts remain, run the continue command. To cancel instead,
     run the abort command."
   * No conflicts remain: "No conflicts remain. Run the continue command to
     finish, or the abort command to cancel."
 
   `<operation>` is replaced by `merge`, `rebase`, `cherry-pick`, or `revert`.
-  Show only the commands and the documentation link
-  (`https://git-scm.com/docs/git-<operation>`) for the detected operation.
+  Show only the commands and the documentation link for the detected operation:
+  `https://git-scm.com/docs/git-merge#_description` for `merge`,
+  `https://git-scm.com/docs/git-rebase#_description` for `rebase`,
+  `https://git-scm.com/docs/git-cherry-pick#_description` for `cherry-pick`,
+  and `https://git-scm.com/docs/git-revert#_sequencer_subcommands` for `revert`.
 
 * Git stage: You are working in the local repository: Git has paused an
   operation that combines commits, and any conflicted files stay in your working
@@ -1484,8 +1487,8 @@ The Conditions of the hints below assume this check and do not repeat it.
         exactly equal to `Branch: main`. Verify that the `operation-in-progress`
         block names a merge, lists `foo.txt`, contains `git add`, `git merge
         --continue`, `git merge --abort`, and `Warning:`, and links to
-        `https://git-scm.com/docs/git-merge`. Verify that it does not include
-        continuation or abort commands for other operations.
+        `https://git-scm.com/docs/git-merge#_description`. Verify that it does
+        not include continuation or abort commands for other operations.
      3. Run `git-hints --all --ids-only`. Verify that `operation-in-progress` is
         present.
   6. Resolved but not yet continued:
@@ -1509,8 +1512,8 @@ The Conditions of the hints below assume this check and do not repeat it.
      2. Run `git-hints --all`. Verify that the `operation-in-progress` block
         names a rebase (not a cherry-pick), contains `git rebase --continue` and
         `git rebase --abort`, and links to
-        `https://git-scm.com/docs/git-rebase`. Verify that it does not include
-        continuation or abort commands for other operations.
+        `https://git-scm.com/docs/git-rebase#_description`. Verify that it does
+        not include continuation or abort commands for other operations.
      3. Verify that the first output line is exactly `Branch: detached HEAD` and
         that `detached-head` is absent from `git-hints --all --ids-only`.
      4. Change `foo.txt` to `resolved2`, run `git add foo.txt`, then run `git
@@ -1527,8 +1530,9 @@ The Conditions of the hints below assume this check and do not repeat it.
       4. Run `git-hints --all`. Verify that the `operation-in-progress` block
          names a cherry-pick, contains `git cherry-pick --continue` and `git
          cherry-pick --abort`, and links to
-         `https://git-scm.com/docs/git-cherry-pick`. Verify that it does not
-         include continuation or abort commands for other operations.
+         `https://git-scm.com/docs/git-cherry-pick#_description`. Verify that
+         it does not include continuation or abort commands for other
+         operations.
       5. Run `git cherry-pick --abort`, then `git-hints --all --ids-only`;
          verify that `operation-in-progress` is absent.
   11. Revert:
@@ -1540,7 +1544,8 @@ The Conditions of the hints below assume this check and do not repeat it.
          --abort` runs in cleanup if it is still in progress.
       3. Run `git-hints --all`. Verify that the `operation-in-progress` block
          names a revert, contains `git revert --continue` and `git revert
-         --abort`, and links to `https://git-scm.com/docs/git-revert`. Verify
+         --abort`, and links to
+         `https://git-scm.com/docs/git-revert#_sequencer_subcommands`. Verify
          that it does not include continuation or abort commands for other
          operations.
       4. Run `git revert --abort`, then `git-hints --all --ids-only`; verify
@@ -1549,11 +1554,11 @@ The Conditions of the hints below assume this check and do not repeat it.
 ### Stop tracking ignored files?
 
 * Hint: Do you want Git to stop tracking files that match active
-  [ignore rules](https://git-scm.com/docs/gitignore "Lists patterns for files Git should not track; it only affects files that are not already tracked")?
+  [ignore rules](https://git-scm.com/docs/gitignore#_notes "Lists patterns for files Git should not track; it only affects files that are not already tracked")?
   These rules may come from `.gitignore`, `.git/info/exclude`, or a global
   excludes file. Ignoring a file does not affect files Git already tracks. To
   stop tracking a file but keep it on your disk, use
-  [`git rm --cached`](https://git-scm.com/docs/git-rm "With --cached, removes a file from the index but leaves it in your working directory").
+  [`git rm --cached`](https://git-scm.com/docs/git-rm#Documentation/git-rm.txt---cached "With --cached, removes a file from the index but leaves it in your working directory").
   Anyone who pulls your commit will have the file deleted, and it remains in
   earlier commits, so change any password or key it contained.
 
@@ -1617,9 +1622,9 @@ The Conditions of the hints below assume this check and do not repeat it.
      one quoted correctly in the command), that `foo.txt` does not appear, and
      that the block contains `git rm --cached`, `git add .gitignore`, `git diff
      --cached`, `git commit`, `earlier commits`,
-     `https://git-scm.com/docs/git-rm`, and
-     `https://git-scm.com/docs/gitignore`. Run `git-hints --all --ids-only`;
-     verify that `tracked-but-ignored` is present.
+     `https://git-scm.com/docs/git-rm#Documentation/git-rm.txt---cached`, and
+     `https://git-scm.com/docs/gitignore#_notes`. Run `git-hints --all
+     --ids-only`; verify that `tracked-but-ignored` is present.
   5. Run `git rm --cached debug.log "my notes.log"` and require exit code 0.
      Verify that both files still exist on disk. Run `git-hints --all
      --ids-only`; verify that `tracked-but-ignored` is absent, because the files
@@ -2054,7 +2059,7 @@ solely to check its hints.
 ### Preserve local changes before pulling?
 
 * Hint: The attempted
-  [git pull](https://git-scm.com/docs/git-pull#_description "Fetch and integrate changes into the current branch")
+  [git pull](https://git-scm.com/docs/git-merge#_pre_merge_checks "git pull and git merge stop without doing anything when local uncommitted changes overlap with files they need to update")
   was blocked because incoming changes would overwrite uncommitted tracked
   changes. Preserve your local work before retrying. Affected files: `<files>`.
 
@@ -2075,7 +2080,7 @@ solely to check its hints.
   successful pull, use `git stash apply` if a stash was created; resolve any
   conflicts and retain the stash until restoration is verified. Default stashing
   excludes untracked files. See
-  [git stash](https://git-scm.com/docs/git-stash#_description "Temporarily save working-directory and index changes").
+  [git stash](https://git-scm.com/docs/git-stash#_examples "When git pull refuses to overwrite local changes, stash them, pull, and then restore them").
 
 * ID: `pull-blocked-local-changes`, priority class: error/blocked, safety: safe.
 
@@ -2108,9 +2113,11 @@ solely to check its hints.
      `other`, replace the file with `remote change`, commit, and push.
   4. In `local`, run `git-hints explain -- git pull`; require a nonzero exit
      code. Verify the `pull-blocked-local-changes` block names `foo.txt`, has
-     `error/blocked` priority, includes the git-pull documentation URL, and
-     offers commit and stash preservation commands. Verify that no stdout line
-     equals `ID: stash-local-changes`.
+     `error/blocked` priority, includes
+     `https://git-scm.com/docs/git-merge#_pre_merge_checks` and
+     `https://git-scm.com/docs/git-stash#_examples`, and offers commit and
+     stash preservation commands. Verify that no stdout line equals
+     `ID: stash-local-changes`.
   5. Verify that `foo.txt` still contains `local change`, the index is
      unchanged, and no stash or unmerged entries were created.
   6. Run `git add foo.txt`, then repeat the failed pull through `explain`.
@@ -2283,7 +2290,7 @@ solely to check its hints.
 
 * Hint: After five qualifying failures to integrate with the upstream branch,
   replaying your local commits using
-  [git pull --rebase](https://git-scm.com/docs/git-pull "Fetch upstream changes and replay local commits on top of them")
+  [git pull --rebase](https://git-scm.com/docs/git-pull#Documentation/git-pull.txt---rebasetruemergesfalseinteractive "Fetch upstream changes and replay local commits on top of them")
   may resolve the problem. Rebasing changes local commit IDs and may cause
   conflicts. Make sure your local work is committed or otherwise backed up
   before attempting it.
@@ -2295,7 +2302,7 @@ solely to check its hints.
 * Command: Caution: `git pull --rebase`. This fetches upstream changes and
   replays local commits on top of them. If conflicts occur, resolve them and use
   `git rebase --continue`, or cancel with `git rebase --abort`. See the
-  [git rebase documentation](https://git-scm.com/docs/git-rebase "Replay commits on another base and resolve rebase conflicts").
+  [git rebase documentation](https://git-scm.com/docs/git-rebase#_description "Replay commits on another base and resolve rebase conflicts").
   Expected result: The local branch contains the upstream commits followed by
   the replayed local commits and can be pushed if no other errors remain.
 
