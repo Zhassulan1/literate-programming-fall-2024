@@ -1022,7 +1022,11 @@ def stash_entries(ctx: Context) -> Hint | None:
     ):
         return None
     # One line per entry, newest first; no output when there is no stash.
-    entries = repo.check("stash", "list").stdout.splitlines()
+    # Git ends each entry with "\n" only, so a message containing other line
+    # breaks, such as a form feed, stays one entry.
+    entries = repo.check("stash", "list").stdout.split("\n")
+    if entries[-1] == "":
+        entries.pop()
     if not entries:
         return None
     count = "1 entry" if len(entries) == 1 else f"{len(entries)} entries"

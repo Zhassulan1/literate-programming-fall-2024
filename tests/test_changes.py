@@ -793,3 +793,16 @@ def test_stash_entries(tmp_path_factory: pytest.TempPathFactory) -> None:
     finally:
         git(repo, "bisect", "reset")
     assert "stash-entries" in hint_ids(repo)
+
+    # Git ends each entry with "\n" only, so a message containing other line
+    # breaks is still one entry.
+    make_repo(
+        repo,
+        [
+            append(repo / "foo.txt", "z"),
+            ["git", "stash", "push", "-m", "first second\fthird"],
+        ],
+    )
+    assert git(repo, "stash", "list").stdout.count("\n") == 7
+    _, found = all_blocks(repo)
+    assert "7 entries" in found["stash-entries"]
