@@ -2310,7 +2310,8 @@ solely to check its hints.
   --quiet HEAD`. Store the failure count and the current `HEAD` commit ID. If
   the state file is missing or unreadable, because it cannot be read or does
   not hold valid records, initialize the count to zero. Write updates
-  atomically using a temporary file followed by a rename.
+  atomically using a temporary file followed by a rename, and remove the
+  temporary file when the write fails.
 
   Count only the following failures from commands executed through `git-hints
   explain`:
@@ -2341,7 +2342,8 @@ solely to check its hints.
   * The stored `HEAD` commit ID differs from the current `HEAD`.
 
   Other commands and failures that do not qualify leave the count unchanged. An
-  unexpected inspection failure while counting leaves the state file unchanged.
+  unexpected inspection failure while counting leaves the state file unchanged
+  and does not display this hint.
 
 * Test case: Suggesting rebase after repeated failures.
 
@@ -2536,7 +2538,9 @@ exit code of `git-hints explain`. While the supplied command runs, `git-hints
 explain` must ignore the interrupt and quit signals, such as `SIGINT` from
 Ctrl+C, which the terminal also sends to Git, so that Git alone decides how
 the command ends and its exit code and captured standard error are still
-reported.
+reported. Git must keep the default handling of these signals: a signal that
+is ignored when Git is launched stays ignored in Git, so ignore them only
+after launching it, or catch them with a handler that does nothing.
 
 Report an unexpected inspection failure and a failure to launch Git on
 standard error as a message starting with `git-hints: `, and exit with code 1;
@@ -2544,12 +2548,15 @@ for `git-hints explain`, these messages follow Git's captured standard error,
 and this code replaces Git's exit code. This applies to both modes, with and
 without `--ids-only`. Report each failed inspection command once, however many
 hints and other parts of inspection, such as the integration-failure counter,
-use it; when it exited with an unexpected code, name the command and that code
-in the message. An operating-system error with a file that inspection reads or
-writes directly rather than through Git, such as writing the
-integration-failure state file or reading the modification time of
-`FETCH_HEAD` for `stale-fetch`, is also an unexpected inspection failure; name
-the file in its message. A missing `FETCH_HEAD` and a missing or unreadable
+use it; when it exited with an unexpected code, name the command with its
+arguments, that code, and the command's error message, if any, in the message.
+Inspection output that shows an invalid or unreadable repository state, which
+`detached-head` and `no-commits` ask to report separately, is also an
+unexpected inspection failure; describe the problem in its message. An
+operating-system error with a file that inspection reads or writes directly
+rather than through Git, such as writing the integration-failure state file or
+reading the modification time of `FETCH_HEAD` for `stale-fetch`, is also an
+unexpected inspection failure; name the file in its message. A missing `FETCH_HEAD` and a missing or unreadable
 state file, including one whose reading fails with an operating-system error,
 remain expected, as their hints describe. After an unexpected inspection
 failure, still print the output that does not depend on the failed commands.
@@ -2869,7 +2876,7 @@ Test case for the failure reporting of Language and libraries, in
    verify that it exits with code 1, that its standard output lists
    `no-upstream-branch` but not `unstaged-changes` and has no line starting
    with `Branch:`, and that its standard error has the same `git-hints: `
-   lines.
+   lines, in any order.
 2. In the same repository, run `git-hints explain -- git status --short`. Git
    itself exits with code 128, and the `merge-conflicts` check then fails to
    inspect the index with `git diff --name-only --diff-filter=U -z`. Verify
@@ -2909,8 +2916,9 @@ Test case for the failure reporting of Language and libraries, in
    file cannot be written. It cannot be read either, which makes it unreadable,
    so the failure reported is the write. Run `git-hints explain -- git push`
    and verify that it exits with code 1, that its output has a block for
-   `push-rejected-non-fast-forward`, and that exactly one line of its standard
-   error starts with `git-hints: ` and contains `integration-failures.json`.
+   `push-rejected-non-fast-forward`, and that its standard error has exactly
+   one line starting with `git-hints: `, which contains
+   `integration-failures.json`.
 6. On systems other than Windows, in the repository of step 5, run `git-hints
    explain -- git -c 'alias.die=!kill -TERM $PPID' die`, whose shell alias ends
    the Git process that runs it with `SIGTERM`. Verify that it exits with code
@@ -2934,8 +2942,8 @@ Test case for the failure reporting of Language and libraries, in
    Run `git-hints explain -- git push --force`, whose success resets the count,
    so that writing the state file fails. Verify that it exits with code 1,
    that its standard output contains the lines `Git exited with code 0.` and
-   `No error detected.` and not `No hints.`, and that exactly one line of its
-   standard error starts with `git-hints: ` and contains
+   `No error detected.` and not `No hints.`, and that its standard error has
+   exactly one line starting with `git-hints: `, which contains
    `integration-failures.json`. Restore the permission afterwards.
 
 Development strategy
