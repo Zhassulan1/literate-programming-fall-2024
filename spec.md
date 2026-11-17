@@ -159,6 +159,13 @@ Hint structure
    repository as applicable. The first implementation supports the CLI; a future
    GUI may show the corresponding GUI action alongside the command.
 
+   A word of a suggested command that comes from the repository or from the
+   user's command, such as a path or a branch name, is left bare when it
+   consists only of ASCII letters, digits, and `_+=:./-`. Otherwise it is put in
+   double quotes, which work in POSIX shells, PowerShell, and `cmd`, unless it
+   contains `"`, `$`, `` ` ``, `\`, `!`, `%`, or a control character; such a
+   word is quoted for PowerShell on Windows and for POSIX shells elsewhere.
+
    A hint may also have a **Related output** field, which states how other hints
    and the repository context line behave while the hint applies.
 
@@ -686,9 +693,13 @@ cc-hv2RyOfXis">Implementation of Branch has diverged from upstream</h4>
   not be displayed then, because its command would not make the upstream resolve
   in the first case and would recreate a deleted remote branch in the second,
   which `unpushed-branches` also avoids. Confirm that the `origin` remote exists
-  using `git remote`. Suggest configuring an upstream only when the current
-  branch has no upstream configured and `origin` exists. Do not display the hint
-  in detached HEAD state or on a branch with no commits.
+  using `git remote`. When `git for-each-ref --format=%(refname)
+  refs/remotes/origin/` lists `refs/remotes/origin/<branch>`, display the hint
+  only if `git merge-base --is-ancestor refs/remotes/origin/<branch> HEAD` exits
+  0; exit code 1 means that the push would be rejected, as in
+  `unpushed-branches`, condition 5.1. Suggest configuring an upstream only when
+  the current branch has no upstream configured and `origin` exists. Do not
+  display the hint in detached HEAD state or on a branch with no commits.
 
 * Test case:
 
@@ -721,6 +732,11 @@ cc-hv2RyOfXis">Implementation of Branch has diverged from upstream</h4>
       again, and that `no-upstream-branch` is still absent.
   11. Run `git switch -c +plus` and verify that `git-hints --all` recommends
       `git push -u origin refs/heads/+plus`.
+  12. Run `git switch -c side` and `git push origin side`, which records no
+      upstream, and verify that `no-upstream-branch` is present, because
+      `origin/side` is an ancestor of `side`. Run `git commit --amend -m
+      "Change foo."` and verify that the hint is absent, because the push would
+      be rejected.
 
 <h4 id="cc-vvhZq4EYmH" data-gather="cc-wa0iZk_9m1 cc-t7V1Ualy4j">Implementation
 of Configure an upstream branch?</h4>
@@ -1098,6 +1114,10 @@ cc-zjIQBL5_DQ">Implementation of Review and commit widespread changes?</h4>
      which are correct from any subdirectory and in linked worktrees. Suppress
      this hint if any of the returned paths exists. If the call fails, report
      the inspection error rather than assuming no operation is in progress.
+     Also suppress it during a merge, cherry-pick, or revert, detected as in
+     `operation-in-progress`, and while `git diff --name-only --diff-filter=U`
+     prints paths: `git switch` refuses to run during these operations, and
+     `git switch <branch>` also refuses while unmerged paths exist.
   5. Run `git for-each-ref --contains HEAD --format=%(refname:lstrip=2)
      refs/heads`, passing `--format=%(refname:lstrip=2)` as one argument with
      no quote characters. Empty output with exit code 0 means HEAD is on no
@@ -1107,7 +1127,7 @@ cc-zjIQBL5_DQ">Implementation of Review and commit widespread changes?</h4>
      and show the `git switch <branch>` command. Other exit codes are
      inspection errors.
   6. Display `detached-head` only when HEAD is detached at a valid commit
-     outside a submodule and neither a rebase nor a bisect is in progress.
+     outside a submodule and none of the states of step 4 is present.
 * Related output: In normal output and `--all`, the repository context line must
   show `detached HEAD`, even when this hint is suppressed during an operation.
   The context line is not a hint. The existing `no-upstream-branch` hint must
@@ -1201,6 +1221,17 @@ cc-zjIQBL5_DQ">Implementation of Review and commit widespread changes?</h4>
       --ids-only`; verify that `detached-head` is absent and
       `bisect-in-progress` is present. Delete the file in cleanup even if an
       assertion fails, then finish with `git switch saved-work`.
+  17. Run `git switch --detach main` and `git merge --no-commit --no-ff
+      saved-work`, and require each to exit 0. Precondition: the `MERGE_HEAD`
+      path exists. Verify that `detached-head` is absent. Ensure `git merge
+      --abort` runs in cleanup even if an assertion fails.
+  18. Change `foo.txt` to `xxxyzv`, run `git stash` and `git switch --detach
+      saved-work`, then run `git stash pop` and require a nonzero exit code,
+      because the change conflicts. Preconditions: `git diff --name-only
+      --diff-filter=U` prints `foo.txt`, and the `MERGE_HEAD` path does not
+      exist. Verify that `detached-head` is absent. Ensure `git reset --hard`,
+      `git stash drop`, and `git switch saved-work` run in cleanup even if an
+      assertion fails.
 
 <h4 id="cc-RBigmUgMo9" data-gather="cc-W6y1mXRT18 cc-R_xrTpSWD5
 cc-1N9dE1ptIi">Implementation of Detached HEAD state</h4>
@@ -1377,10 +1408,13 @@ of Current branch has no commits yet</h4>
   4. Suppress the hint while the index contains unresolved merge entries, that
      is, when `git diff --name-only --diff-filter=U` prints any paths. Also
      suppress it while an operation is in progress: `git switch` refuses to run
-     during a merge, cherry-pick or revert. Run `git rev-parse
-     --path-format=absolute --git-path MERGE_HEAD --git-path CHERRY_PICK_HEAD
-     --git-path REVERT_HEAD`; if any returned path exists, do not display the
-     hint. Rebases and bisects detach HEAD, so step 1 already excludes them.
+     during a merge, rebase, cherry-pick, revert, or `git am` session. Run `git
+     rev-parse --path-format=absolute --git-path MERGE_HEAD --git-path
+     CHERRY_PICK_HEAD --git-path REVERT_HEAD --git-path rebase-merge
+     --git-path rebase-apply`; if any returned path exists, do not display the
+     hint. A rebase usually detaches HEAD, so step 1 excludes it, but a `git
+     am` session, which uses `rebase-apply`, leaves HEAD attached. During a
+     bisect, `git switch` only prints a warning.
   5. Require uncommitted changes to tracked files: `git diff --quiet` or `git
      diff --cached --quiet` exits 1. Exit code 0 from both means there are no
      such changes. Other exit codes are inspection errors. Untracked files alone
@@ -1436,6 +1470,15 @@ of Current branch has no commits yet</h4>
      symbolic-ref --quiet --short HEAD` prints `main`. Run `git-hints --all
      --ids-only` and verify that `changes-on-default-branch` is absent. Ensure
      `git merge --abort` runs in cleanup even if an assertion fails.
+  9. In `work/local`, run `git format-patch -1 -o <work> feature`, which writes
+     the last commit of `feature` to a patch file in `work` and prints its
+     path. Change `foo.txt` to `main` and run `git commit -am "Change foo on
+     main."`. Run `git am <patch>` and require a nonzero exit code, because the
+     patch does not apply. Preconditions: `git symbolic-ref --quiet --short
+     HEAD` prints `main`, and the `rebase-apply` path contains an `applying`
+     file. Append `y` to `foo.txt` and verify that `changes-on-default-branch`
+     is absent. Ensure `git am --abort` runs in cleanup even if an assertion
+     fails.
 
 <h4 id="cc-4aDHRrvpLq" data-gather="cc-279T3whLND cc-QYkz_SkNyN">Implementation
 of Make your changes on a new branch?</h4>
@@ -1737,10 +1780,12 @@ cc-DFDJB39a74">Implementation of Stop tracking ignored files?</h4>
   stash push -u` saved; for an older entry, use its index from `git stash list`
   instead of `0`. `git stash apply 0` applies them; afterward, they are in your
   working directory and the entry stays in `git stash list`. If the changes
-  conflict with your files, Git either refuses to apply them or leaves
-  conflicts to resolve, and the entry stays in the list. Warning: `git stash
-  drop 0` deletes the entry, and its changes may be impossible to recover; first
-  check with `git stash show -p --include-untracked 0` that they are applied or
+  conflict with your files, Git may refuse to apply them, leave conflicts to
+  resolve, or, when an untracked file that the entry saved already exists, apply
+  only the tracked changes and report that it could not restore the untracked
+  files; in each case the entry stays in the list. Warning: `git stash drop 0`
+  deletes the entry, and its changes may be impossible to recover; first check
+  with `git stash show -p --include-untracked 0` that they are applied or
   committed. Warning: `git stash pop 0` applies the entry and, on success, drops
   it, so its changes then exist only in your working directory; first check
   them with `git stash show -p --include-untracked 0`. A plain index such as
@@ -1779,8 +1824,9 @@ cc-DFDJB39a74">Implementation of Stop tracking ignored files?</h4>
      that `git stash list` prints exactly `stash@{0}: On main: First change` and
      that `stash-entries` is present. Run `git-hints --all` and verify that the
      block contains `1 entry`, that line, `git stash show -p --include-untracked
-     0`, `git stash apply 0`, `Warning:` before `git stash drop 0` and before
-     `git stash pop 0`, and `https://git-scm.com/docs/git-stash#_description`.
+     0`, `git stash apply 0`, `could not restore the untracked files`,
+     `Warning:` before `git stash drop 0` and before `git stash pop 0`, and
+     `https://git-scm.com/docs/git-stash#_description`.
   4. Run `git switch -c other` and verify that `stash-entries` is still present.
   5. Run `git switch main`. Five times, append a line to `foo.txt` and run `git
      stash push`. Run `git-hints --all` and verify that the block contains `6
@@ -1822,12 +1868,12 @@ of Keep track of stash entries?</h4>
   <remote> <branch>:<remote-branch>` when the remote branch name differs. You do
   not need to switch to a branch to push it. The Command field gives one command
   for each listed branch, in the order of the list; branches counted in "and N
-  more" get none. Branch names in the commands are quoted correctly for the
-  shell, and a name that starts with `+` is written as `refs/heads/<branch>`,
-  because Git reads a leading `+` as a request to force the update. Afterward,
-  this hint no longer lists the branch. When a tag has the same name as the
-  branch, Git refuses these commands as ambiguous; this case is a known
-  limitation.
+  more" get none. Branch names in the commands are quoted as Hint structure,
+  item 2, describes, and a name that starts with `+` is written as
+  `refs/heads/<branch>`, because Git reads a leading `+` as a request to force
+  the update. Afterward, this hint no longer lists the branch. When a tag has
+  the same name as the branch, Git refuses these commands as ambiguous; this
+  case is a known limitation.
 
 * ID: `unpushed-branches`, priority class: workflow, safety: safe.
 
@@ -1917,7 +1963,11 @@ of Keep track of stash entries?</h4>
      verify that the block is labeled "as of last fetch", names `feature` with
      `(no upstream)` but not `main` or `topic`, suggests `git push -u origin
      feature`, and contains
-     `https://git-scm.com/docs/git-push#UPSTREAM-BRANCHES`.
+     `https://git-scm.com/docs/git-push#UPSTREAM-BRANCHES`. Run `git branch a&b
+     feature` and `git branch x$y feature`, passing each name as one argument;
+     verify that the commands are exactly `git push -u origin "a&b"`, `git push
+     -u origin feature`, and `git push -u origin 'x$y'`, in this order, then
+     run `git branch -D a&b x$y`.
   4. Run `git switch feature`; verify that `unpushed-branches` is absent and
      `no-upstream-branch` is present. Run `git switch main`.
   5. Run `git push -u origin feature`; verify that the hint is absent. Commit
@@ -2074,7 +2124,11 @@ of Push your other local branches?</h4>
      `git bisect reset` as cleanup. Append a line to `foo.txt` and run `git
      stash push`. Verify that `git-hints --all --ids-only` lists `stash-entries`
      before `stale-fetch`.
-  10. Run `git remote remove origin` and verify that the hint is absent.
+  10. Run `git remote remove origin` and verify that the hint is absent. Run
+      `git remote add origin <empty>` and `git fetch`; verify that `git
+      for-each-ref refs/remotes/` prints nothing, that `path` is empty, and
+      that the hint is absent, because no remote-tracking branch can be out of
+      date.
   11. In a separate test, set up `remote` and `local` as in step 1, run `git
       worktree add -b feature <wt>` in `local`, and append a line to `foo.txt`
       in `wt`. Replace the main worktree's `FETCH_HEAD`, `path` in `local`, with
@@ -3135,13 +3189,22 @@ specification it concerns, and the code follows the specification:
   documentation link is chosen and checked, and how each hint section is
   connected with its code.
 * Language and libraries requires `GIT_OPTIONAL_LOCKS=0` and `LC_ALL=C` for
-  inspection commands, reads ref names without `--short`, and defines how
-  unexpected failures are reported; Testing has the test cases for all three.
+  inspection commands, runs every inspection `git diff` as `git -c
+  diff.autoRefreshIndex=true diff`, reads ref names without `--short`, and
+  defines how unexpected failures are reported; Testing has the test cases for
+  all of these.
+* `no-upstream-branch` is not displayed when `branch.<name>.merge` is set but
+  does not resolve or when its push would be rejected, and writes
+  `refs/heads/<branch>` for a branch name starting with `+`. `detached-head` is
+  also suppressed during a merge, cherry-pick, or revert and while unmerged
+  paths exist, and `changes-on-default-branch` during a rebase or `git am`
+  session, because their `git switch` commands would fail.
 * Behavior that the code already had is specified in the sections it belongs
   to: the `bisect-in-progress` hint, the priority class and test case of
   `commit-identity`, `git init` in `not-a-repo`, `No hints.` for `explain`, the
-  suppression of `behind` and `diverged` during a paused operation or while
-  conflicts remain, and of `tracked-but-ignored` while conflicts remain.
+  shell quoting of suggested commands, the suppression of `behind` and
+  `diverged` during a paused operation or while conflicts remain, and of
+  `tracked-but-ignored` while conflicts remain.
 
 All changes follow these rules:
 
