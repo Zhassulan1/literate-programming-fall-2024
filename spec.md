@@ -73,8 +73,8 @@ CLI commands
    * Match reactive hints against captured standard error and repository state
      only. Git prints conflict messages such as `CONFLICT (content): Merge
      conflict in <file>` and `Automatic merge failed; ...` on standard output,
-     which `explain` does not capture, so conflicts are detected from
-     repository state (see `merge-conflicts`), never from Git's messages.
+     which `explain` does not capture, so conflicts must be detected from
+     repository state (see `merge-conflicts`), not from Git's messages.
 
    * Under `--ids-only`, standard output contains only triggered reactive hint
      IDs, one per line, and no exit-code message. Captured standard error
@@ -1008,8 +1008,8 @@ The Conditions of the hints below assume this check and do not repeat it.
   [detached HEAD](https://git-scm.com/docs/git-checkout#_detached_head "HEAD points at a commit instead of a branch; new commits belong to no branch").
   Create a branch if you want to keep working here and give your commits a
   branch name. When Conditions step 5 finds that HEAD is on no local branch,
-  add: "Your commits made here are not on any local branch; create a branch before
-  switching away or they will be hard to find."
+  add: "Your commits made here are not on any local branch; create a branch
+  before switching away or they will be hard to find."
 
 * Git stage: You are working in the local repository at a specific commit
   instead of on a named local branch.
@@ -1020,11 +1020,11 @@ The Conditions of the hints below assume this check and do not repeat it.
   already made at the current detached HEAD a branch name.
 
   When Conditions step 5 prints at least one branch, also show: "To return to a
-  branch that already contains this commit: `git switch <branch>`", with `<branch>`
-  replaced by the first branch that step 5 printed. Expected result: HEAD is
-  attached to that branch again, and `git status` reports `On branch <branch>`.
-  Do not show this command when HEAD is on no local branch, because switching
-  away would leave commits behind.
+  branch that already contains this commit: `git switch <branch>`", with
+  `<branch>` replaced by the first branch that step 5 printed. Expected result:
+  HEAD is attached to that branch again, and `git status` reports `On branch
+  <branch>`. Do not show this command when HEAD is on no local branch, because
+  switching away would leave commits behind.
 
 * ID: `detached-head`, priority class: informational, or `data-loss risk` when
   Conditions step 5 finds that HEAD is on no local branch (see Priority in Hint
