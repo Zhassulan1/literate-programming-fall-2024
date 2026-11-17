@@ -32,10 +32,10 @@ from typing import Literal, TypeVar
 
 # ### Local
 from .git import (
-    FileInspectionError,
     GitLaunchError,
     InspectionError,
     Repo,
+    file_status,
     split_nul,
 )
 from .hint import (
@@ -1266,12 +1266,9 @@ def stale_fetch(ctx: Context) -> Hint | None:
         raise InspectionError(repo.run(*args))
     newest: os.stat_result | None = None
     for path in (Path(lines[0]), Path(lines[1]) / "FETCH_HEAD"):
-        try:
-            status = path.stat()
-        except FileNotFoundError:
+        status = file_status(path)
+        if status is None:
             continue
-        except OSError as error:
-            raise FileInspectionError("read", path, error) from error
         if newest is None or status.st_mtime > newest.st_mtime:
             newest = status
     if newest is None:

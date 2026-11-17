@@ -282,6 +282,7 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
         local, "index", "git-hints/integration-failures.json"
     )
     index.write_bytes(b"garbage")
+    first_failures: list[str] = []
     for options in ([], ["--ids-only"]):
         result = run_hints(local, *options, "explain", "--", "git", "push")
         assert result.returncode == 1
@@ -293,6 +294,10 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
         failures = reported_failures(result.stderr)
         assert failures
         assert len(set(failures)) == len(failures)
+        if options:
+            assert sorted(failures) == sorted(first_failures)
+        else:
+            first_failures = failures
         assert not counts.exists()
 
     # A state file that cannot be written is reported, naming the file.

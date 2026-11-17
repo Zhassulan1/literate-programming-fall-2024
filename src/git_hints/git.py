@@ -22,6 +22,7 @@
 # ### Standard library
 import os
 import posixpath
+import stat
 import subprocess
 import threading
 from collections.abc import Collection, Sequence
@@ -62,7 +63,10 @@ class InspectionError(Exception):
         message: str | None = None,
     ) -> None:
         command = " ".join(["git", *result.args])
-        detail = message or result.stderr.strip() or "no error message"
+        # Join the lines of Git's message, so that each reported failure is a
+        # single line and can't be mistaken for Git's own output.
+        lines = [line.strip() for line in result.stderr.splitlines()]
+        detail = message or "; ".join(filter(None, lines)) or "no error message"
         super().__init__(
             f"`{command}` exited with code {result.returncode}: {detail}"
         )
@@ -82,6 +86,17 @@ class FileInspectionError(InspectionError):
         Exception.__init__(
             self, f"Could not {action} `{path}`: {error.strerror or error}"
         )
+
+
+# Return the status of a file that inspection reads directly, or `None` when
+# it doesn't exist; any other operating-system error is an inspection failure.
+def file_status(path: Path) -> os.stat_result | None:
+    try:
+        return path.stat()
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    except OSError as error:
+        raise FileInspectionError("read", path, error) from error
 
 
 # Git writes paths as raw bytes; decode them as UTF-8 regardless of the
@@ -373,12 +388,21 @@ class Repo:
         rebase_merge, rebase_apply, bisect_start = self.git_paths(
             "rebase-merge", "rebase-apply", "BISECT_START"
         )
-        am = rebase_apply.is_dir() and (rebase_apply / "applying").exists()
+
+        def is_dir(path: Path) -> bool:
+            status = file_status(path)
+            return status is not None and stat.S_ISDIR(status.st_mode)
+
+        in_rebase_apply = is_dir(rebase_apply)
+        am = (
+            in_rebase_apply
+            and file_status(rebase_apply / "applying") is not None
+        )
         return Operations(
             merge=self.ref_exists("MERGE_HEAD"),
-            rebase=rebase_merge.is_dir() or (rebase_apply.is_dir() and not am),
+            rebase=is_dir(rebase_merge) or (in_rebase_apply and not am),
             am=am,
             cherry_pick=self.ref_exists("CHERRY_PICK_HEAD"),
             revert=self.ref_exists("REVERT_HEAD"),
-            bisect=bisect_start.exists(),
+            bisect=file_status(bisect_start) is not None,
         )
