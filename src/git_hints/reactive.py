@@ -19,6 +19,7 @@
 # -------
 #
 # ### Standard library
+import contextlib
 import json
 import os
 import re
@@ -30,7 +31,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # ### Local
-from .git import GitLaunchError, InspectionError, Repo, decode
+from .git import (
+    FileInspectionError,
+    GitLaunchError,
+    InspectionError,
+    Repo,
+    decode,
+)
 from .hint import (
     Command,
     Hint,
@@ -562,14 +569,22 @@ def load_counts(path: Path) -> dict[str, dict[str, object]]:
 
 
 # Write the counts atomically, so an interrupted write can't leave a partial
-# file.
+# file. A failed write leaves the file unchanged and is an inspection failure.
 def save_counts(path: Path, counts: dict[str, dict[str, object]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        "w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False
-    ) as temporary:
-        json.dump(counts, temporary, indent=2)
-    os.replace(temporary.name, path)
+    temporary_name: str | None = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False
+        ) as temporary:
+            temporary_name = temporary.name
+            json.dump(counts, temporary, indent=2)
+        os.replace(temporary_name, path)
+    except OSError as error:
+        if temporary_name is not None:
+            with contextlib.suppress(OSError):
+                Path(temporary_name).unlink(missing_ok=True)
+        raise FileInspectionError("write", path, error) from error
 
 
 # Record the outcome of a push or pull for the current branch. Return true
@@ -660,6 +675,9 @@ def explain(
     emit_stderr(completed.stderr)
     stderr = decode(completed.stderr)
     returncode = completed.returncode
+    # A negative code means that signal ended Git; report it as a shell does.
+    if returncode < 0:
+        returncode = 128 - returncode
 
     errors: list[Exception] = []
     repo: Repo | None = None

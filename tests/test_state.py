@@ -177,7 +177,9 @@ def reported_failures(stderr: str) -> list[str]:
 
 
 def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
-    repo, empty, local, remote = make_temps(tmp_path_factory, 4)
+    repo, empty, local, remote, pusher, pusher_remote = make_temps(
+        tmp_path_factory, 6
+    )
     config_user("user1", "user1@example.com")
     make_repo(
         repo,
@@ -203,7 +205,11 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
     found = blocks(result.stdout)
     assert "no-upstream-branch" in found
     assert "unstaged-changes" not in found
-    assert reported_failures(result.stderr)
+    # Each failed command is reported once, with its exit code.
+    failures = reported_failures(result.stderr)
+    assert failures
+    assert len(set(failures)) == len(failures)
+    assert all("128" in line for line in failures)
 
     result = run_hints(repo, "--all", "--ids-only")
     assert result.returncode == 1
@@ -211,7 +217,7 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "no-upstream-branch" in ids
     assert "unstaged-changes" not in ids
     assert not any(line.startswith("Branch:") for line in ids)
-    assert reported_failures(result.stderr)
+    assert sorted(reported_failures(result.stderr)) == sorted(failures)
 
     # Git's own message comes first, then the failed `merge-conflicts`
     # inspection.
@@ -234,6 +240,8 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
         ]
         assert fatal and failed
         assert fatal[0] < failed[0]
+        assert "--diff-filter=U" in lines[failed[0]]
+        assert "128" in lines[failed[0]]
 
     # With no `git` executable on `PATH`, Git cannot be launched.
     env = dict(os.environ, PATH=str(empty))
@@ -276,6 +284,43 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
         assert failures
         assert len(set(failures)) == len(failures)
         assert not counts.exists()
+
+    # A state file that cannot be written is reported, naming the file.
+    make_repo(pusher_remote, [["git", "init", "--bare", "-b", "main"]])
+    make_repo(
+        pusher,
+        [
+            ["git", "init", "-b", "main"],
+            ["git", "remote", "add", "origin", str(pusher_remote)],
+            write(pusher / "foo.txt", "base"),
+            ["git", "add", "foo.txt"],
+            ["git", "commit", "-m", "Add foo."],
+            ["git", "push", "-u", "origin", "main"],
+            ["git", "commit", "--amend", "-m", "Add foo again."],
+        ],
+    )
+    (state,) = git_paths(pusher, "git-hints/integration-failures.json")
+    state.mkdir(parents=True)
+    result = run_hints(pusher, "explain", "--", "git", "push")
+    assert result.returncode == 1
+    assert "push-rejected-non-fast-forward" in blocks(result.stdout)
+    failures = reported_failures(result.stderr)
+    assert len(failures) == 1
+    assert "integration-failures.json" in failures[0]
+
+    # Git ended by a signal has the exit code a shell would report.
+    if os.name != "nt":
+        result = run_hints(
+            pusher,
+            "explain",
+            "--",
+            "git",
+            "-c",
+            "alias.die=!kill -TERM $PPID",
+            "die",
+        )
+        assert result.returncode == 143
+        assert "Git exited with code 143." in result.stdout.splitlines()
 
 
 # `detached-head`

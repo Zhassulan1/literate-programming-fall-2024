@@ -69,6 +69,21 @@ class InspectionError(Exception):
         self.result = result
 
 
+# Inspection could not read or write a file directly, rather than through Git.
+class FileInspectionError(InspectionError):
+    def __init__(
+        self,
+        # What inspection tried to do, such as "write".
+        action: str,
+        # The file concerned.
+        path: Path,
+        error: OSError,
+    ) -> None:
+        Exception.__init__(
+            self, f"Could not {action} `{path}`: {error.strerror or error}"
+        )
+
+
 # Git writes paths as raw bytes; decode them as UTF-8 regardless of the
 # locale, replacing undecodable bytes rather than failing.
 def decode(data: bytes) -> str:

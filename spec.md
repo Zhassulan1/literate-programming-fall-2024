@@ -2528,7 +2528,10 @@ or repository condition.
 
 Plain `git-hints` exits 0, whether or not any hint is triggered, and `git-hints
 explain` returns Git's exit code, except for the usage errors of CLI commands,
-which exit 2, and for the failures of the next paragraph.
+which exit 2, and for the failures of the next paragraph. When Git is ended by
+signal N, which `subprocess` reports as `returncode` -N, Git's exit code is
+128 + N, as in a POSIX shell, both in `Git exited with code <n>.` and as the
+exit code of `git-hints explain`.
 
 Report an unexpected inspection failure and a failure to launch Git on
 standard error as a message starting with `git-hints: `, and exit with code 1;
@@ -2537,15 +2540,23 @@ and this code replaces Git's exit code. This applies to both modes, with and
 without `--ids-only`. Report each failed inspection command once, however many
 hints and other parts of inspection, such as the integration-failure counter,
 use it; when it exited with an unexpected code, name the command and that code
-in the message. After an unexpected inspection failure, still print the output
-that does not depend on the failed commands, and, in normal output, `No
-hints.` when no hint triggers. All output of plain `git-hints` depends on the
-commands of the repository context line (Hint structure, item 1): when one of
-them fails, report it, stop inspecting, and print nothing on standard output,
-with or without `--ids-only`. When Git cannot be launched, report it once,
-stop, and print nothing on standard output. For `git-hints explain`, this
-applies to the supplied command; an inspection command that cannot be launched
-after it ran is an unexpected inspection failure.
+in the message. An operating-system error with a file that inspection reads or
+writes directly rather than through Git, such as writing the
+integration-failure state file or reading the modification time of
+`FETCH_HEAD` for `stale-fetch`, is also an unexpected inspection failure; name
+the file in its message. A missing `FETCH_HEAD` and an unreadable state file
+remain expected, as their hints describe. After an unexpected inspection
+failure, still print the output that does not depend on the failed commands,
+and, in normal output, `No hints.` when no hint triggers. All output of plain
+`git-hints` depends on the commands of the repository context line (Hint
+structure, item 1): when one of them fails, report it, stop inspecting, and
+print nothing on standard output, with or without `--ids-only`. The same
+applies under `--fetch` to the commands that choose the remote, which run
+before that line. When Git cannot be launched, report it once, stop, and print
+nothing on standard output. For `git-hints explain`, this applies to the
+supplied command; an inspection command that cannot be launched after it ran
+is an unexpected inspection failure, reported once however many commands
+cannot be launched.
 
 Decode Git output as UTF-8 (`encoding="utf-8", errors="replace"`), not with the
 locale default. When a path list is parsed, use `-z` or `-c
@@ -2845,20 +2856,21 @@ Test case for the failure reporting of Language and libraries, in
    first line of its standard output is `Branch: main`, that its output has a
    block for `no-upstream-branch`, which does not read the index, and none for
    `unstaged-changes`, which does, and that at least one line of its standard
-   error starts with `git-hints: `. Run `git-hints --all --ids-only` and verify
+   error starts with `git-hints: `, that no two such lines are the same, and
+   that each of them contains `128`. Run `git-hints --all --ids-only` and verify
    that it exits with code 1, that its standard output lists
    `no-upstream-branch` but not `unstaged-changes` and has no line starting
-   with `Branch:`, and that at least one line of its standard error starts with
-   `git-hints: `.
+   with `Branch:`, and that its standard error has the same `git-hints: ` lines.
 2. In the same repository, run `git-hints explain -- git status --short`. Git
    itself exits with code 128, and the `merge-conflicts` check then fails to
    inspect the index with `git diff --name-only --diff-filter=U -z`. Verify
    that `git-hints` exits with code 1, that its standard output contains the
    line `Git exited with code 128.`, and that its standard error contains a
    line starting with `fatal:`, which is Git's own message, followed later by a
-   line starting with `git-hints: `. Run `git-hints --ids-only explain -- git
-   status --short` and verify that it exits with code 1, that its standard
-   output is empty, and that its standard error contains both lines again.
+   line starting with `git-hints: ` that contains `--diff-filter=U` and `128`.
+   Run `git-hints --ids-only explain -- git status --short` and verify that it
+   exits with code 1, that its standard output is empty, and that its standard
+   error contains both lines again.
 3. Create an empty directory. In the same repository, run `git-hints --all` and
    then `git-hints explain -- git status`, each with `PATH` set to that
    directory, so that Git cannot be launched. Run `git-hints` as
@@ -2881,6 +2893,19 @@ Test case for the failure reporting of Language and libraries, in
    `git-hints --ids-only explain -- git push` and verify the same exit code,
    failure lines, and state file, and that its standard output lists
    `push-rejected-non-fast-forward`.
+5. Set up a bare repository and a repository with one commit as in step 4, but
+   leave the index intact, and create a directory at the path printed by `git
+   rev-parse --path-format=absolute --git-path
+   git-hints/integration-failures.json`, so that the integration-failure state
+   file cannot be written. Run `git-hints explain -- git push` and verify that
+   it exits with code 1, that its output has a block for
+   `push-rejected-non-fast-forward`, and that exactly one line of its standard
+   error starts with `git-hints: ` and contains `integration-failures.json`.
+6. On systems other than Windows, in the repository of step 5, run `git-hints
+   explain -- git -c 'alias.die=!kill -TERM $PPID' die`, whose shell alias ends
+   the Git process that runs it with `SIGTERM`. Verify that it exits with code
+   143 and that its standard output contains the line `Git exited with code
+   143.`
 
 Development strategy
 ====================

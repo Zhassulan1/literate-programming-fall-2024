@@ -31,7 +31,13 @@ from pathlib import Path
 from typing import Literal, TypeVar
 
 # ### Local
-from .git import GitLaunchError, InspectionError, Repo, split_nul
+from .git import (
+    FileInspectionError,
+    GitLaunchError,
+    InspectionError,
+    Repo,
+    split_nul,
+)
 from .hint import (
     Command,
     Hint,
@@ -1264,6 +1270,8 @@ def stale_fetch(ctx: Context) -> Hint | None:
             status = path.stat()
         except FileNotFoundError:
             continue
+        except OSError as error:
+            raise FileInspectionError("read", path, error) from error
         if newest is None or status.st_mtime > newest.st_mtime:
             newest = status
     if newest is None:
