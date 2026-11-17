@@ -1903,7 +1903,10 @@ The Conditions of the hints below assume this check and do not repeat it.
      is not seen.
   3. Skip the hint when neither file exists. Otherwise use the existing file
      with the newest modification time. `FETCH_HEAD` records fetch attempts;
-     remote-tracking ref updates made without a fetch do not count.
+     remote-tracking ref updates made without a fetch do not count. An error
+     other than a missing file when either file is examined, such as a denied
+     permission, is an unexpected inspection failure, which Language and
+     libraries describes.
   4. If that file is empty, the hint applies with `the last fetch failed or
      fetched nothing`: a fetch that cannot reach its remote and a fetch that
      fetches nothing both leave `FETCH_HEAD` empty. Otherwise the hint applies
@@ -1923,10 +1926,10 @@ The Conditions of the hints below assume this check and do not repeat it.
   Set an age with `os.utime(path, (t, t))`, where `t` is `time.time()` minus the
   age in seconds.
 
-  1. Call `make_temps(tmp_path_factory, 3)`, naming the directories `remote`,
-     `local`, and `wt`, and run step 1 of the `unpushed-branches` test case,
-     including its `config_user` call, with these directories in place of its
-     own `make_temps` call. Let `path` be the output of `git rev-parse
+  1. Call `make_temps(tmp_path_factory, 4)`, naming the directories `remote`,
+     `local`, `wt`, and `empty`, and run step 1 of the `unpushed-branches` test
+     case, including its `config_user` call, with these directories in place of
+     its own `make_temps` call. Let `path` be the output of `git rev-parse
      --path-format=absolute --git-path FETCH_HEAD` in `local`.
   2. Verify that `path` does not exist and that `stale-fetch` is absent: the
      clone and the push wrote no `FETCH_HEAD`.
@@ -1940,7 +1943,13 @@ The Conditions of the hints below assume this check and do not repeat it.
      and run `git push -u origin feature`; verify that the hint is still
      present, because a push is not a fetch. Run `git switch main`.
   6. Run `git-hints --all --ids-only --fetch` and verify that `stale-fetch` is
-     absent.
+     absent. Run `git init --bare` in `empty`, point `origin` at it with `git
+     remote set-url origin <empty>`, and run `git-hints --all --fetch`: the
+     fetch succeeds but fetches nothing, so only the successful `--fetch` skips
+     the hint. Verify that `path` is empty and that the output contains neither
+     `Fetch failed` nor a `stale-fetch` block. Restore the URL with `git remote
+     set-url origin <remote>`, run `git fetch`, and verify that `path` is not
+     empty.
   7. Set the age to two days and point `origin` at a missing directory with
      `git remote set-url origin <missing>`. Run `git-hints --all --fetch`;
      verify that the output contains `Fetch failed; showing results as of last
