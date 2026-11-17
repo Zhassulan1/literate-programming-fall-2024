@@ -1089,13 +1089,14 @@ cc-zjIQBL5_DQ">Implementation of Review and commit widespread changes?</h4>
      which are correct from any subdirectory and in linked worktrees. Suppress
      this hint if any of the returned paths exists. If the call fails, report
      the inspection error rather than assuming no operation is in progress.
-  5. Run `git for-each-ref --contains HEAD --format=%(refname:short)
-     refs/heads`, passing `--format=%(refname:short)` as one argument with no
-     quote characters. Empty output with exit code 0 means HEAD is on no local
-     branch, so commits made here can be lost: use priority class `data-loss
-     risk` and add the warning sentence to the hint text. Nonempty output means
-     at least one local branch contains HEAD: use `informational` and show the
-     `git switch <branch>` command. Other exit codes are inspection errors.
+  5. Run `git for-each-ref --contains HEAD --format=%(refname:lstrip=2)
+     refs/heads`, passing `--format=%(refname:lstrip=2)` as one argument with
+     no quote characters. Empty output with exit code 0 means HEAD is on no
+     local branch, so commits made here can be lost: use priority class
+     `data-loss risk` and add the warning sentence to the hint text. Nonempty
+     output means at least one local branch contains HEAD: use `informational`
+     and show the `git switch <branch>` command. Other exit codes are
+     inspection errors.
   6. Display `detached-head` only when HEAD is detached at a valid commit
      outside a submodule and neither a rebase nor a bisect is in progress.
 * Related output: In normal output and `--all`, the repository context line must
@@ -1137,7 +1138,10 @@ cc-zjIQBL5_DQ">Implementation of Review and commit widespread changes?</h4>
      first output line is exactly `Branch: detached HEAD`. Run `git-hints --all
      --ids-only`; verify that `detached-head` is present and
      `no-upstream-branch` and `no-commits` are absent. Identify hints by exact
-     ID, without requiring their descriptive wording to match.
+     ID, without requiring their descriptive wording to match. Run `git tag
+     main` and verify that the block still contains `git switch main`, not
+     `heads/main` as `%(refname:short)` would print; then run `git tag -d
+     main`.
   8. Commit while detached: change `foo.txt` to `xxxyzw` and run `git commit -am
      "Append w."`. Precondition: `git for-each-ref --contains HEAD
      --format=%(refname:short) refs/heads` exits 0 and prints nothing. Run
@@ -1351,12 +1355,13 @@ of Current branch has no commits yet</h4>
      as `refs/heads/<name>`; remove `refs/heads/`, as Language and libraries
      requires. Exit code 1 (detached HEAD) means the hint is absent. Other
      exit codes are inspection errors.
-  2. Run `git symbolic-ref --quiet --short refs/remotes/origin/HEAD`. Exit code
-     0 prints the remote's default branch, for example `origin/main`; remove the
-     `origin/` prefix. Exit code 1 means the ref is absent, for example in a
-     repository set up with `git init` and `git remote add`; skip the hint then
-     rather than guessing `main` or `master`. Other exit codes are inspection
-     errors. Continue only when the current branch equals the default branch.
+  2. Run `git symbolic-ref --quiet refs/remotes/origin/HEAD`. Exit code 0
+     prints the remote's default branch, for example `refs/remotes/origin/main`;
+     remove the `refs/remotes/origin/` prefix. Exit code 1 means the ref is
+     absent, for example in a repository set up with `git init` and `git remote
+     add`; skip the hint then rather than guessing `main` or `master`. Other
+     exit codes are inspection errors. Continue only when the current branch
+     equals the default branch.
   3. Require `git rev-parse --verify --quiet HEAD` to exit 0. On a branch with
      no commits, `no-commits` applies instead, and its advice to commit on the
      current branch is correct.
@@ -1396,7 +1401,10 @@ of Current branch has no commits yet</h4>
      --ids-only` and verify that `changes-on-default-branch` is present.
   4. Run `git add foo.txt`. Preconditions: `git diff --quiet` exits 0 and `git
      diff --cached --quiet` exits 1. Run `git-hints --all --ids-only` and verify
-     that `changes-on-default-branch` is still present.
+     that `changes-on-default-branch` is still present. Run `git branch
+     origin/main`; precondition: `git symbolic-ref --quiet --short
+     refs/remotes/origin/HEAD` prints `remotes/origin/main`. Verify that the
+     hint is still present, then run `git branch -D origin/main`.
   5. Run `git commit -m "Append y."`, then create `notes.txt` containing `Hello
      world` without staging it. Run `git-hints --all --ids-only` and verify that
      `changes-on-default-branch` is absent and `untracked-files` is present.
@@ -1724,9 +1732,10 @@ cc-DFDJB39a74">Implementation of Stop tracking ignored files?</h4>
   conflicts to resolve, and the entry stays in the list. Warning: `git stash
   drop 0` deletes the entry, and its changes may be impossible to recover; first
   check with `git stash show -p --include-untracked 0` that they are applied or
-  committed. Warning: `git stash pop 0` applies and, on success, drops the
-  entry, so check it the same way first. A plain index such as `0`, which Git
-  accepts for `stash@{0}`, needs no quoting in any shell.
+  committed. Warning: `git stash pop 0` applies the entry and, on success, drops
+  it, so its changes then exist only in your working directory; first check
+  them with `git stash show -p --include-untracked 0`. A plain index such as
+  `0`, which Git accepts for `stash@{0}`, needs no quoting in any shell.
 
 * ID: `stash-entries`, priority class: informational, safety: warning.
 
@@ -1831,7 +1840,11 @@ of Keep track of stash entries?</h4>
      is expected; other exit codes are inspection errors. For each commit that
      no remote-tracking branch contains and that a local branch points to, it
      prints one line naming the local branches at that commit, separated by
-     `, `. Ignore empty lines, which root and merge commits produce.
+     `, `. The exception is a root commit with an empty tree, as made by `git
+     commit --allow-empty` in a new repository: `--simplify-by-decoration`
+     hides it as unchanged, so a branch that points to it is not reported; this
+     case is a known limitation. Ignore empty lines, which root and merge
+     commits produce.
      `--decorate-refs=refs/heads/` keeps tags, `HEAD`, and remote-tracking
      branches out of the output; before Git 2.35 it applies to `%D` only
      together with `--decorate`. In a shallow repository the output can also
@@ -1996,10 +2009,10 @@ of Push your other local branches?</h4>
   Set an age with `os.utime(path, (t, t))`, where `t` is `time.time()` minus the
   age in seconds.
 
-  1. Call `make_temps(tmp_path_factory, 3)`, naming the directories `remote`,
-     `local`, and `wt`, and run step 1 of the `unpushed-branches` test case,
-     including its `config_user` call, with these directories in place of its
-     own `make_temps` call. Let `path` be the output of `git rev-parse
+  1. Call `make_temps(tmp_path_factory, 4)`, naming the directories `remote`,
+     `local`, `wt`, and `empty`, and run step 1 of the `unpushed-branches` test
+     case, including its `config_user` call, with these directories in place of
+     its own `make_temps` call. Let `path` be the output of `git rev-parse
      --path-format=absolute --git-path FETCH_HEAD` in `local`.
   2. Verify that `path` does not exist and that `stale-fetch` is absent: the
      clone and the push wrote no `FETCH_HEAD`.
@@ -2013,7 +2026,12 @@ of Push your other local branches?</h4>
      and run `git push -u origin feature`; verify that the hint is still
      present, because a push is not a fetch. Run `git switch main`.
   6. Run `git-hints --all --ids-only --fetch` and verify that `stale-fetch` is
-     absent.
+     absent. Run `git init --bare` in `empty`, point `origin` at it with `git
+     remote set-url origin <empty>`, and run `git-hints --all --fetch`: the
+     fetch succeeds but fetches nothing, so only the successful `--fetch` skips
+     the hint. Verify that `path` is empty and that the output contains neither
+     `Fetch failed` nor a `stale-fetch` block. Restore the URL with `git remote
+     set-url origin <remote>`.
   7. Set the age to two days and point `origin` at a missing directory with
      `git remote set-url origin <missing>`. Run `git-hints --all --fetch`;
      verify that the output contains `Fetch failed; showing results as of last
@@ -2571,10 +2589,13 @@ codes, so no additional Git library is required.
   matches, such as "not a git repository", are in English. An inspection command
   that needs the current branch's name uses `git branch --show-current`, as for
   the repository context line, or `git symbolic-ref --quiet HEAD` with
-  `refs/heads/` removed. It must not use `git symbolic-ref --short`, which
-  prints `heads/<name>` when a tag has the same name. Inspection must not change
-  tracked content, the working tree, refs, or the stash; `git diff` may still
-  refresh the cached stat data in the index (`diff.autoRefreshIndex`, which
+  `refs/heads/` removed. Any ref name that inspection compares or puts into a
+  suggested command is read in full with its prefix removed, as here or with
+  `%(refname:lstrip=2)`. It must not be read with `--short` or
+  `%(refname:short)`, which print `heads/<name>` or `remotes/<name>` when
+  another ref has the same short name. Inspection must not change tracked
+  content, the working tree, refs, or the stash; `git diff` may still refresh
+  the cached stat data in the index (`diff.autoRefreshIndex`, which
   stays enabled because disabling it would make stat-only changes look
   modified). That refresh takes the index lock whatever `GIT_OPTIONAL_LOCKS`
   says, so inspection can still hold the lock briefly. The command run by
@@ -2650,21 +2671,25 @@ The pages on `https://git-scm.com/docs/<page>` are rendered from
 `Documentation/<page>.adoc` in the Git source. A section's ID is derived from
 its title:
 
-1. If the title is preceded by an explicit anchor line `[[ID]]`, the ID is
-   exactly `ID`; for example, UPSTREAM BRANCHES, included into `git-pull` and
-   `git-push` from `urls-remotes.adoc`, has the ID `UPSTREAM-BRANCHES`. An
-   inline anchor `[[ID]]` inside the title, as in `REMOTES[[REMOTES]]`, adds
-   the ID `ID`, and the section keeps the ID that rule 2 derives from the title
-   without the anchor, here `_remotes`. An anchor line applies to the next
-   title even when blank lines, comments, or attribute lines such as
-   `[appendix]` come between them.
-2. Otherwise the title is first rendered as Asciidoctor renders it: an
-   attribute reference such as `{caret}` is replaced by its value, and ` -- `
-   becomes an em dash, which is then deleted together with the spaces around
-   it. The rendered title is lowercased; every character that is not a letter,
-   digit, underscore, space, hyphen, or period is deleted; `_` is prefixed; and
-   each run of spaces, underscores, hyphens, and periods is replaced by one
-   `_`, with no trailing `_`. For example, NOTE ABOUT FAST-FORWARDS becomes
+1. If the title is preceded by an explicit anchor line `[[ID]]`, or ends in a
+   space and `[[ID]]`, as in `TITLE [[ID]]`, the ID is exactly `ID`; for
+   example, UPSTREAM BRANCHES, included into `git-pull` and `git-push` from
+   `urls-remotes.adoc`, has the ID `UPSTREAM-BRANCHES`. Any other inline anchor
+   `[[ID]]` inside the title, as in `REMOTES[[REMOTES]]`, adds the ID `ID`, and
+   the section keeps the ID that rule 2 derives from the title without the
+   anchor, here `_remotes`. An anchor line applies to the next title even when
+   blank lines, comments, or attribute lines such as `[appendix]` come between
+   them.
+2. Otherwise the title is first rendered to HTML as Asciidoctor renders it: an
+   attribute reference such as `{caret}` is replaced by its value, and
+   Asciidoctor's replacements produce HTML entities, such as an em dash between
+   thin spaces for ` -- `. The rendered title is lowercased; each HTML tag and
+   each entity, including the `&#x2d;&#x2d;` that Git defines for `{litdd}`, is
+   deleted whole, so ` -- ` disappears together with the spaces around it;
+   every other character that is not a letter, digit, underscore, space,
+   hyphen, or period is deleted; `_` is prefixed; and each run of spaces,
+   underscores, hyphens, and periods is replaced by one `_`, with no trailing
+   `_`. For example, NOTE ABOUT FAST-FORWARDS becomes
    `_note_about_fast_forwards`, REBASE VS. PULL/MERGE becomes
    `_rebase_vs_pullmerge`, and INTERNALS -- SPARSE CHECKOUT becomes
    `_internalssparse_checkout`. If the ID already occurs earlier on the page,
@@ -2687,13 +2712,15 @@ whole-page link remains only when neither works, and its entry records the
 reason.
 
 Some anchors are known to move. Git's development branch adds the explicit
-anchor `[[DETACHED_HEAD]]` to `git-checkout`, which changes `#_detached_head`
-to `#DETACHED_HEAD`, and moves the merge-conflict explanation from
-`git-merge#_how_conflicts_are_presented` to the new `gitmergeconflicts` page,
-`gitmergeconflicts#markers`. Neither change is released yet. Keep the anchor
-that works on the served release, record the expected replacement in its entry
-of the documentation table, and update the specification and the table
-together once the new release is served.
+anchors `[[DETACHED_HEAD]]` to `git-checkout` and `[[EXAMPLES]]` to
+`git-stash`, which change `#_detached_head` to `#DETACHED_HEAD` and
+`#_examples` to `#EXAMPLES`. It also moves the merge-conflict explanations to
+the new `gitmergeconflicts` page: `git-merge#_how_conflicts_are_presented` to
+`gitmergeconflicts#markers` and `git-merge#_how_to_resolve_conflicts` to
+`gitmergeconflicts#resolve`. None of these changes is released yet. Keep the
+anchor that works on the served release, record the expected replacement in
+its entry of the documentation table, and update the specification and the
+table together once the new release is served.
 
 Applying these rules to a hint changes its link in the hint section of this
 specification first and then its entry in the documentation table. In this
@@ -2767,8 +2794,8 @@ not in the checkout, it says so and exits 2 before checking anything.
    opening one; it contains no titles, and its delimiter lines are not
    underlines. Titles inside `ifdef::` and `ifndef::` blocks are collected
    whatever the condition, which `--site` confirms. The script collects the
-   explicit anchors `[[ID]]` and, for each title without an explicit anchor line
-   before it, the ID derived by the rules above.
+   explicit anchors `[[ID]]` and, for each title that rule 1 gives no explicit
+   ID, the ID derived by the rules above.
 2. It prints `ok <url>` when the ID exists at both refs, `missing <url>` when it
    does not exist at `<tag>`, and `moves <url>` when it exists at `<tag>` but
    not at `origin/master`, which finds an anchor that will move before the
@@ -2970,9 +2997,8 @@ specification it concerns, and the code follows the specification:
   documentation link is chosen and checked, and how each hint section is
   connected with its code.
 * Language and libraries requires `GIT_OPTIONAL_LOCKS=0` and `LC_ALL=C` for
-  inspection commands, reads the current branch's name without `git
-  symbolic-ref --short`, and defines how unexpected failures are reported;
-  Testing has the test cases for all three.
+  inspection commands, reads ref names without `--short`, and defines how
+  unexpected failures are reported; Testing has the test cases for all three.
 
 The subsection below, Implementation Strategy, is being merged into the parts
 of the specification it concerns in the same way. Until then, a decision
