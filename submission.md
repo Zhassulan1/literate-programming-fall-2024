@@ -933,7 +933,7 @@ or irrelevant. Local paths are replaced by `<repo>` (the repository),
 Review only these parts of spec.md in <repo>: the hint sections "Keep track of stash entries?", "Push your other local branches?", and "Fetch to see the newest remote commits?"; the precedence list in Hint structure, item 5; the "Plain `git-hints`" bullet in "Language and libraries"; the "Documentation links" section; the paragraph in "Testing" that begins "Inspection must keep working"; and the introduction of "Development strategy", up to the "Implementation Strategy" heading. Check for technical inaccuracies, contradictions with the rest of spec.md or with the code in src/git_hints/, missing decisions, and ambiguous or untestable statements. Avoid stylistic suggestions. A clone of the Git source is at <git-source> (tag v2.56.0), and you may create scratch repositories under <scratch>/spec-review to check Git's behavior. Do not modify any file in the repository. Report the findings as a numbered list, each with the location, the problem, and why it matters, followed by the total number of findings.
 ```
 
-Review of spec.md on branch git-tool (working tree at 01d58d7). I checked each claim against src/git_hints/, the Git source (v2.56.0, v2.34.0 and origin/master), and scratch repositories under <scratch>/spec-review/ using Git 2.56.0. I ran tests/test_docs.py, test_unpushed_branches, test_stash_entries and test_inspection_environment without writing caches: 8 passed, and the repository is unchanged.
+Review of spec.md on branch git-tool (working tree at 01d58d7). I checked each claim against src/git_hints/, the Git source (v2.56.0, v2.34.0 and origin/master), and scratch repositories under `<scratch>/spec-review/` using Git 2.56.0. I ran tests/test_docs.py, test_unpushed_branches, test_stash_entries and test_inspection_environment without writing caches: 8 passed, and the repository is unchanged.
 
 Scope note: spec.md no longer has an "Implementation Strategy" heading (commit 01d58d7 removed it). For the Development strategy item I therefore reviewed the whole section, lines 3005–3041.
 
@@ -990,7 +990,7 @@ Things I checked and found accurate:
 - The tag/branch push ambiguity.
 - Every docs.py URL appears in the hint sections, and every hint-section Markdown link is in the table.
 
-Scratch repositories: <scratch>/spec-review/ (t1–t5, env.sh).
+Scratch repositories: `<scratch>/spec-review/` (t1–t5, env.sh).
 
 I rejected finding 1 because the specification chooses this command for both
 `push-ahead` and `unpushed-branches`, finding 4 because collecting titles in
@@ -1023,10 +1023,10 @@ round 3 output below; strikethrough indicates findings that I deemed incorrect
 or irrelevant, and local paths are replaced as above.
 
 ```text
-Review the implementation of these parts of spec.md in <repo>: the "Documentation links" section, which is implemented by src/git_hints/docs.py, the links in src/git_hints/proactive.py and src/git_hints/reactive.py, tests/test_docs.py, scripts/check_doc_links.py, and the CodeChat markup in the code and in spec.md; and the push commands of `unpushed-branches` and `no-upstream-branch` for branch names that start with `+`. Check that the code does what the specification says, that the tests can detect violations of it, and that the script's output and exit codes follow it; verify claims about Git's documentation against the Git source at <git-source> and the live pages on git-scm.com. Avoid stylistic suggestions. You may create scratch files under <scratch>/impl-review-2. Do not modify any file in the repository. Report the findings as a numbered list, each with the location, the problem, and why it matters, followed by the total number of findings.
+Review the implementation of these parts of spec.md in <repo>: the "Documentation links" section, which is implemented by src/git_hints/docs.py, the links in src/git_hints/proactive.py and src/git_hints/reactive.py, tests/test_docs.py, scripts/check_doc_links.py, and the CodeChat markup in the code and in spec.md; and the push commands of `unpushed-branches` and `no-upstream-branch` for branch names that start with `+`. Check that the code does what the specification says, that the tests can detect violations of it, and that the script's output and exit codes follow it; verify claims about Git's documentation against the Git source at <git-source> and the live pages on git-scm.com. Avoid stylistic suggestions. You may create scratch files under <scratch>/impl-review-3. Do not modify any file in the repository. Report the findings as a numbered list, each with the location, the problem, and why it matters, followed by the total number of findings.
 ```
 
-## Findings
+**Findings**
 
 <del>1\. **spec.md:2769-2775 (check 2) and tests/test_docs.py:350-391 (lines 359 and 379-385): URLs in code spans are never checked against the table.** - **Problem:** In the second direction, check 2 only checks that Markdown link URLs are in the table. A code span may name any URL. That covers the operation-in-progress hint text, which gives its four links only as code spans (spec.md:1449-1452), and every URL a test case expects. - **Mutations tried:** I changed `git-revert#_sequencer_subcommands` at spec.md:1452 to `git-revert#_description`, which is not in the table. `test_table_matches_spec` still passes. Changing detached-head's test-case URL at spec.md:1137 to `#DETACHED_HEAD` also passes. - **Why it matters:** The spec says the hint text stays authoritative and that this test checks the spec and the table agree. Right now a stale or mistyped URL in hint text or in a test case goes unnoticed. Today no code-span URL in the hint sections is outside the table, so requiring code spans to be table entries would break nothing.</del>
 
@@ -1064,7 +1064,7 @@ Review the implementation of these parts of spec.md in <repo>: the "Documentatio
    - **Evidence:** The live git-fetch page has `id="UPSTREAM-BRANCHES"` (and `REMOTES` / `_remotes`).
    - **Why it matters:** This is a factual statement about Git's documentation, and it reads as a complete list.
 
-## Checked and correct
+**Checked and correct**
 - **`+` push commands:**
   - `push_source` (proactive.py:566) and its use in no-upstream-branch (:603) and unpushed-branches (:1216-1228) match the spec.
   - Git's refspec parsing confirms the reason (refspec.c:29-31 at v2.56.1).
@@ -1080,7 +1080,7 @@ Review the implementation of these parts of spec.md in <repo>: the "Documentatio
   - Every gathered ID exists and no fragment is left unused. IDs are unique and have the form `cc-` plus 10 characters.
   - Gather headings close each implemented hint section. Shared helpers (`push_source`, `plural`, `overwritten_paths`) have no fragment, as the spec says.
 
-The repository is unchanged. I removed the Python 3.14 `.pyc` caches my imports had written. Mutation and comparison scripts, plus the downloaded live pages, are in <scratch>/impl-review-3
+The repository is unchanged. I removed the Python 3.14 `.pyc` caches my imports had written. Mutation and comparison scripts, plus the downloaded live pages, are in `<scratch>/impl-review-3`
 
 Total: 8 findings.
 
