@@ -648,7 +648,9 @@ The Conditions of the hints below assume this check and do not repeat it.
   does not know which remote branch it tracks for future pushes and pulls.
 
 * Command: `git push -u origin <branch-name>` pushes the current branch to
-  `origin` and configures its upstream for future pushes and pulls.
+  `origin` and configures its upstream for future pushes and pulls. A branch
+  name that starts with `+` is written as `refs/heads/<branch-name>`, as in
+  `unpushed-branches`.
 
 * ID: `no-upstream-branch`, priority class: workflow, safety: safe.
 
@@ -690,6 +692,8 @@ The Conditions of the hints below assume this check and do not repeat it.
      verify that it returns `origin/feature-test`.
   9. Run `git-hints --all --ids-only` and verify that `no-upstream-branch` is
      absent.
+  10. Run `git switch -c +plus` and verify that `git-hints --all` recommends
+      `git push -u origin refs/heads/+plus`.
 
 ### Review staged changes before committing?
 
@@ -1726,9 +1730,10 @@ The Conditions of the hints below assume this check and do not repeat it.
   branches, separated by `, ` and followed by `, and N more` when more are
   reported, each followed by `(no upstream)` or `(ahead of <upstream> by <k>)`,
   where `<upstream>` is the branch's `%(upstream:short)` and `<k>` reads `1
-  commit`, `2 commits`, and so on. The hint is always labeled "as of last
-  fetch": it compares branches with remote-tracking branches, and `--fetch`
-  updates only one remote.
+  commit`, `2 commits`, and so on. Each branch name and each `<upstream>` is in
+  its own code span, so that a name is not read as Markdown. The hint is always
+  labeled "as of last fetch": it compares branches with remote-tracking
+  branches, and `--fetch` updates only one remote.
 
 * Git stage: These commits are in your local repository only; the remote
   repository has no copy of them until you push the branches.
@@ -1739,9 +1744,11 @@ The Conditions of the hints below assume this check and do not repeat it.
   not need to switch to a branch to push it. The Command field gives one command
   for each listed branch, in the order of the list; branches counted in "and N
   more" get none. Branch names in the commands are quoted correctly for the
-  shell. Afterward, this hint no longer lists the branch. When a tag has the
-  same name as the branch, Git refuses these commands as ambiguous; this case is
-  a known limitation.
+  shell, and a name that starts with `+` is written as `refs/heads/<branch>`,
+  because Git reads a leading `+` as a request to force the update. Afterward,
+  this hint no longer lists the branch. When a tag has the same name as the
+  branch, Git refuses these commands as ambiguous; this case is a known
+  limitation.
 
 * ID: `unpushed-branches`, priority class: workflow, safety: safe.
 
@@ -1766,7 +1773,11 @@ The Conditions of the hints below assume this check and do not repeat it.
      `, `. Ignore empty lines, which root and merge commits produce.
      `--decorate-refs=refs/heads/` keeps tags, `HEAD`, and remote-tracking
      branches out of the output; before Git 2.35 it applies to `%D` only
-     together with `--decorate`. `--no-show-signature` keeps
+     together with `--decorate`. In a shallow repository the output can also
+     contain `grafted`, Git's mark for a commit whose parents are missing;
+     ignore names that step 4 does not list. A branch that is itself named
+     `grafted` may then be reported although a remote-tracking branch contains
+     it; this case is a known limitation. `--no-show-signature` keeps
      `log.showSignature` from adding signature checks. One command finds all
      such branches, however many there are.
   4. Quotes in the commands of these conditions only group an argument; pass it
@@ -1786,9 +1797,11 @@ The Conditions of the hints below assume this check and do not repeat it.
         `no-upstream-branch` does. A branch whose configured upstream maps to no
         remote-tracking branch, because the remote's fetch refspec does not
         cover it, as in a single-branch clone, also has empty upstream fields.
-        Skip it when `git config --get-regexp '^branch\..*\.merge$'` lists
-        `branch.<name>.merge` for it, because a push does not create that
+        Skip it when `git config --name-only --get-regexp '^branch\..*\.merge$'`
+        lists `branch.<name>.merge` for it, because a push does not create that
         remote-tracking branch; exit code 1 means that no branch has one.
+        `--name-only` prints only the names, because a value can contain a
+        newline.
      2. With a remote upstream and `[ahead <k>]`, report it as `(ahead of
         <upstream> by <k>)`, using the remote name and the remote ref without
         `refs/heads/` in the command.
@@ -1852,7 +1865,14 @@ The Conditions of the hints below assume this check and do not repeat it.
       `unpushed-branches` is absent while the rebase is stopped. Run `git
       rebase --abort` and `git switch main` as cleanup, including if an
       assertion fails.
-  13. In `local`, run `git remote remove origin` and verify that the hint is
+  13. In `local`, run `git switch -c +plus main`, commit `plus.txt`, and run
+      `git switch main`. Verify that the block names `+plus` with `(no
+      upstream)` and suggests `git push -u origin refs/heads/+plus`, because Git
+      reads `git push -u origin +plus` as a forced push of a branch `plus`. Run
+      the suggested command and verify that `git-hints --all` does not contain
+      `+plus (`. Commit another file on `+plus`, switch back to `main`, and
+      verify that the hint suggests `git push origin refs/heads/+plus`.
+  14. In `local`, run `git remote remove origin` and verify that the hint is
       absent.
 
 ### Fetch to see the newest remote commits?
