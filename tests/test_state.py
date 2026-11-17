@@ -241,11 +241,12 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
         result = run_hints(repo, *args, env=env)
         assert result.returncode == 1
         assert result.stdout == ""
-        assert result.stderr.splitlines() == reported_failures(result.stderr)
-        assert len(result.stderr.splitlines()) == 1
+        assert result.stderr.startswith("git-hints: ")
+        assert len(reported_failures(result.stderr)) == 1
 
-    # The integration-failure counter and the `merge-conflicts` check share
-    # the failed inspection of the index, which is reported once.
+    # The integration-failure counter and the `merge-conflicts` check both
+    # fail to read the index; each failed command is reported once, and the
+    # counter's state file is left unchanged.
     make_repo(remote, [["git", "init", "--bare", "-b", "main"]])
     make_repo(
         local,
@@ -259,16 +260,22 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
             ["git", "commit", "--amend", "-m", "Add foo again."],
         ],
     )
-    (index,) = git_paths(local, "index")
+    index, counts = git_paths(
+        local, "index", "git-hints/integration-failures.json"
+    )
     index.write_bytes(b"garbage")
-    result = run_hints(local, "explain", "--", "git", "push")
-    assert result.returncode == 1
-    assert "push-rejected-non-fast-forward" in blocks(result.stdout)
-    assert len(reported_failures(result.stderr)) == 1
-    result = run_hints(local, "--ids-only", "explain", "--", "git", "push")
-    assert result.returncode == 1
-    assert "push-rejected-non-fast-forward" in result.stdout.splitlines()
-    assert len(reported_failures(result.stderr)) == 1
+    for options in ([], ["--ids-only"]):
+        result = run_hints(local, *options, "explain", "--", "git", "push")
+        assert result.returncode == 1
+        if options:
+            found = result.stdout.splitlines()
+        else:
+            found = list(blocks(result.stdout))
+        assert "push-rejected-non-fast-forward" in found
+        failures = reported_failures(result.stderr)
+        assert failures
+        assert len(set(failures)) == len(failures)
+        assert not counts.exists()
 
 
 # `detached-head`

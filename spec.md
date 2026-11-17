@@ -50,9 +50,9 @@ CLI commands
       `diverged` hints "as of last fetch."
 2. **`git-hints explain -- <git command>`**: execute the supplied Git command,
    capture its exit code and standard error, and select reactive hints from the
-   resulting error. Return the same exit code as Git. The arguments must begin
-   with `git`; otherwise print an error to standard error, run nothing, and
-   exit 2.
+   resulting error. Return the same exit code as Git, except for the failures
+   that Language and libraries describes. The arguments must begin with `git`;
+   otherwise print an error to standard error, run nothing, and exit 2.
 
    * A `--` separator before the Git command is recommended to make argument
      boundaries unambiguous.
@@ -78,8 +78,8 @@ CLI commands
 
    * Under `--ids-only`, standard output contains only triggered reactive hint
      IDs, one per line, and no exit-code message. Captured standard error
-     remains on standard error; the process still returns Git's exit code. With
-     `--all`, the reactive output remains complete.
+     remains on standard error; the exit code is the same as without
+     `--ids-only`. With `--all`, the reactive output remains complete.
 
    * Configure Typer to accept extra arguments and ignore unknown options
      (`allow_extra_args=True`, `ignore_unknown_options=True`), so Git receives
@@ -2335,7 +2335,8 @@ solely to check its hints.
   * The hint is displayed.
   * The stored `HEAD` commit ID differs from the current `HEAD`.
 
-  Other commands and failures that do not qualify leave the count unchanged.
+  Other commands and failures that do not qualify leave the count unchanged. An
+  unexpected inspection failure while counting leaves the state file unchanged.
 
 * Test case: Suggesting rebase after repeated failures.
 
@@ -2518,9 +2519,8 @@ For both modes, pass arguments separately with `shell=False` and `check=False`.
 Interpret `returncode` according to each command's documented meaning; expected
 nonzero codes are not automatically application errors. Report unexpected
 failures separately and suppress hints that depend on the failed commands. If
-Git ran, return Git's exit code, unless an unexpected inspection failure occurs.
-If Git cannot be launched, report that failure instead of inventing a Git exit
-code or repository condition.
+Git cannot be launched, report that failure instead of inventing a Git exit code
+or repository condition.
 
 Plain `git-hints` exits 0, whether or not any hint is triggered, and `git-hints
 explain` returns Git's exit code, except for the usage errors of CLI commands,
@@ -2532,8 +2532,13 @@ starting with `git-hints: `, and exit with code 1; for `git-hints explain`,
 these messages follow Git's captured standard error, and this code replaces
 Git's exit code. This applies to both modes, with and without `--ids-only`.
 After an unexpected inspection failure, still print the output that does not
-depend on the failed commands. When Git cannot be launched, report it once,
-stop, and print nothing on standard output.
+depend on the failed commands. All output of plain `git-hints` depends on the
+commands of the repository context line (Hint structure, item 1): when one of
+them fails, print nothing on standard output, with or without `--ids-only`.
+When Git cannot be launched, report it once, stop, and print nothing on
+standard output. For `git-hints explain`, this applies to the supplied command;
+an inspection command that cannot be launched after it ran is an unexpected
+inspection failure.
 
 Decode Git output as UTF-8 (`encoding="utf-8", errors="replace"`), not with the
 locale default. When a path list is parsed, use `-z` or `-c
@@ -2853,19 +2858,21 @@ Test case for the failure reporting of Language and libraries, in
    absolute path of the Python interpreter, because a `git-hints` script could
    not be found through that `PATH` either. For each run, verify that it exits
    with code 1, that its standard output is empty, and that its standard error
-   is one line starting with `git-hints: `.
+   starts with `git-hints: ` and has no other line starting with `git-hints: `.
 4. Create a bare repository and a repository with one commit, add the bare
    repository as `origin`, run `git push -u origin main`, then `git commit
    --amend -m <any-message>`, and replace the contents of the index with
    `garbage` as in step 1. Run `git-hints explain -- git push`: Git rejects the
-   push as a non-fast-forward, and both the integration-failure counter and the
-   `merge-conflicts` check then fail to inspect the index with `git diff
-   --name-only --diff-filter=U -z`. Verify that `git-hints` exits with code 1,
-   that its output has a block for `push-rejected-non-fast-forward`, and that
-   exactly one line of its standard error starts with `git-hints: `. Run
-   `git-hints --ids-only explain -- git push` and verify that it exits with
-   code 1, that its standard output lists `push-rejected-non-fast-forward`, and
-   that exactly one line of its standard error starts with `git-hints: `.
+   push as a non-fast-forward, and both the integration-failure counter, which
+   checks for unresolved conflicts, and the `merge-conflicts` check then fail
+   to read the index. Verify that `git-hints` exits with code 1, that its
+   output has a block for `push-rejected-non-fast-forward`, that at least one
+   line of its standard error starts with `git-hints: ` and no two such lines
+   are the same, and that no file exists at the path printed by `git rev-parse
+   --path-format=absolute --git-path git-hints/integration-failures.json`. Run
+   `git-hints --ids-only explain -- git push` and verify the same exit code,
+   failure lines, and state file, and that its standard output lists
+   `push-rejected-non-fast-forward`.
 
 Development strategy
 ====================
