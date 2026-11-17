@@ -1967,8 +1967,18 @@ The Conditions of the hints below assume this check and do not repeat it.
      stash push`. Verify that `git-hints --all --ids-only` lists `stash-entries`
      before `stale-fetch`.
   10. Run `git remote remove origin` and verify that the hint is absent.
+  11. In a separate test, set up `remote` and `local` as in step 1, run `git
+      worktree add -b feature <wt>` in `local`, and append a line to `foo.txt`
+      in `wt`. Replace the main worktree's `FETCH_HEAD`, `path` in `local`, with
+      a symbolic link to itself, and run `git-hints --all` in `wt`, where `git
+      rev-parse` still succeeds and examining that file fails with an error
+      other than a missing file. Verify that it exits with code 1, that exactly
+      one line of its standard error starts with `git-hints: ` and names `path`,
+      and that its output has an `unstaged-changes` block but no `stale-fetch`
+      block. Skip this test where a symbolic link cannot be created.
 
-<h4 data-gather="cc-75esxee47z cc-p96xv0fgyp cc-ki8lk258rw" id="cc-lpx36a973z">
+<h4 data-gather="cc-75esxee47z cc-p96xv0fgyp cc-ki8lk258rw cc-ZknVmHtaTx"
+    id="cc-lpx36a973z">
   Implementation of Fetch to see the newest remote commits?
 </h4>
 
