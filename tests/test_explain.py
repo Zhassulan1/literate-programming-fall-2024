@@ -39,6 +39,7 @@ def read(path: Path) -> str:
 
 # `merge-conflicts`
 # -----------------
+# <fragment id="cc-Rw3DcC4sWS" following="1"></fragment>
 def test_merge_conflicts(tmp_path_factory: pytest.TempPathFactory) -> None:
     repo1, repo2 = make_temps(tmp_path_factory, 2)
     config_user("user1", "user1@example.com")
@@ -102,6 +103,7 @@ def test_merge_conflicts(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 # `pull-blocked-local-changes`
 # ----------------------------
+# <fragment id="cc-xLHUwTLCaB" following="1"></fragment>
 def test_pull_blocked_local_changes(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -171,6 +173,7 @@ def test_pull_blocked_local_changes(
 
 # `push-rejected-non-fast-forward`
 # --------------------------------
+# <fragment id="cc-YBq7c7WLC9" following="1"></fragment>
 def test_push_rejected_non_fast_forward(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -226,6 +229,7 @@ def test_push_rejected_non_fast_forward(
 
 # `stash-local-changes`
 # ---------------------
+# <fragment id="cc-bO1fqbpLXr" following="1"></fragment>
 def test_stash_local_changes(tmp_path_factory: pytest.TempPathFactory) -> None:
     repo, unborn = make_temps(tmp_path_factory, 2)
     config_user("user1", "user1@example.com")
@@ -361,6 +365,8 @@ def rebase_cleanup() -> Iterator[list[Path]]:
             git(repo, "rebase", "--abort")
 
 
+# The `rebase-after-repeated-integration-failures` test case.
+# <fragment id="cc-M2HloJSnsb" following="1"></fragment>
 def test_rebase_after_repeated_integration_failures(
     tmp_path_factory: pytest.TempPathFactory, rebase_cleanup: list[Path]
 ) -> None:
@@ -402,6 +408,8 @@ def test_rebase_after_repeated_integration_failures(
     assert REBASE_HINT not in output_ids(result.stdout)
 
 
+# Rejected pushes and refused pulls count together.
+# <fragment id="cc-Y2dnawDr-G" following="1"></fragment>
 def test_counter_mixed_failures(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -413,6 +421,8 @@ def test_counter_mixed_failures(
     assert REBASE_HINT in rejected_push(local)
 
 
+# A successful push or pull resets the count.
+# <fragment id="cc-z0lbi1ruKs" following="1"></fragment>
 def test_counter_reset_by_success(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -425,6 +435,8 @@ def test_counter_reset_by_success(
     assert REBASE_HINT not in rejected_push(local)
 
 
+# Failures of other kinds are not counted.
+# <fragment id="cc-yW4UfUzYCQ" following="7"></fragment>
 def test_counter_ineligible_errors(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -454,6 +466,8 @@ def test_counter_ineligible_errors(
     assert REBASE_HINT in rejected_push(local)
 
 
+# Each branch has its own count.
+# <fragment id="cc-0JEsPE5X0v" following="1"></fragment>
 def test_counter_branch_isolation(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -471,6 +485,8 @@ def test_counter_branch_isolation(
     assert REBASE_HINT in rejected_push(local)
 
 
+# Commands other than push and pull leave the count alone.
+# <fragment id="cc-q8AWZxQOt8" following="1"></fragment>
 def test_counter_unrelated_commands(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -480,6 +496,8 @@ def test_counter_unrelated_commands(
     assert REBASE_HINT in rejected_push(local)
 
 
+# A new commit at HEAD starts the count over.
+# <fragment id="cc-hPz5NJ8AC0" following="1"></fragment>
 def test_counter_changed_head(tmp_path_factory: pytest.TempPathFactory) -> None:
     _, local, _ = diverged_clones(tmp_path_factory)
     rejected_pushes(local, 4)
@@ -489,6 +507,8 @@ def test_counter_changed_head(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert REBASE_HINT not in rejected_push(local)
 
 
+# The count during an operation in progress.
+# <fragment id="cc-tXA3ths8Qy" following="1"></fragment>
 def test_counter_operation_in_progress(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:

@@ -11,6 +11,7 @@ Git hints tool
    4. [Reactive hints](src/git_hints/reactive.py)
    5. [Hint model and rendering](src/git_hints/hint.py)
    6. [Running Git](src/git_hints/git.py)
+   7. [Documentation table](src/git_hints/docs.py)
 3. Tests
    1. [Test tools](tests/git_test_tools.py)
    2. [Command line and rendering](tests/test_cli.py)
@@ -18,5 +19,8 @@ Git hints tool
    4. [Upstream and fetching](tests/test_remote.py)
    5. [Repository state](tests/test_state.py)
    6. [Explain](tests/test_explain.py)
-4. [Project 2 submission](submission.md)
-5. [Table of contents](toc.md)
+   7. [Documentation links](tests/test_docs.py)
+4. Scripts
+   1. [Documentation link check](scripts/check_doc_links.py)
+5. [Project 2 submission](submission.md)
+6. [Table of contents](toc.md)

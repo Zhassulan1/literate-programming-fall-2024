@@ -98,6 +98,7 @@ def parse_command(argv: Sequence[str]) -> GitCommand:
 
 
 # Return a subcommand's positional arguments.
+# <fragment id="cc-Yxt_xzkQXb" following="3"></fragment>
 def positional_arguments(
     arguments: Sequence[str],
     # Options which take a value as the following argument.
@@ -119,6 +120,7 @@ def positional_arguments(
 
 # True when a `git pull` replays local commits instead of merging; the last of
 # conflicting options wins, as in Git.
+# <fragment id="cc-60-KYhf2jN" following="1"></fragment>
 def pull_rebases(arguments: Sequence[str]) -> bool:
     rebase = False
     for word in arguments:
@@ -191,12 +193,17 @@ class Failure:
         return self.repo.display_path(path) if self.repo else path
 
 
+# After a failed command, `merge-conflicts` runs the proactive check on the
+# repository state that the command left.
+# <fragment id="cc-C0LcF15kTG" following="1"></fragment>
 def reactive_merge_conflicts(failure: Failure) -> Hint | None:
     if failure.repo is None:
         return None
     return merge_conflicts(Context(failure.repo, fetched=False))
 
 
+# A `git pull` refused because it would overwrite local changes.
+# <fragment id="cc-kFNwYqo95d" following="3"></fragment>
 def pull_blocked_local_changes(failure: Failure) -> Hint | None:
     if failure.command.subcommand != "pull":
         return None
@@ -276,6 +283,7 @@ PUSH_OPTIONS_WITH_VALUE = {
 
 # Return the remote a push went to: its explicit repository argument, or the
 # configured push destination.
+# <fragment id="cc-48v27bgD9d" following="1"></fragment>
 def push_remote(repo: Repo, command: GitCommand, branch: str | None) -> str:
     positionals = positional_arguments(
         command.arguments, PUSH_OPTIONS_WITH_VALUE
@@ -298,6 +306,7 @@ def push_remote(repo: Repo, command: GitCommand, branch: str | None) -> str:
 # Map a branch on a remote to its remote-tracking branch using the remote's
 # fetch refspecs, such as `+refs/heads/*:refs/remotes/origin/*`. Return `None`
 # when no refspec maps it.
+# <fragment id="cc-l-hZ6zBWvd" following="1"></fragment>
 def tracking_branch(repo: Repo, remote: str, destination: str) -> str | None:
     if remote not in repo.remotes:
         return None
@@ -327,6 +336,9 @@ def tracking_branch(repo: Repo, remote: str, destination: str) -> str | None:
     return None
 
 
+# A `git push` rejected because the remote branch has commits that the pushed
+# branch lacks.
+# <fragment id="cc-7GTkWmWNSa" following="3"></fragment>
 def push_rejected_non_fast_forward(failure: Failure) -> Hint | None:
     if failure.command.subcommand != "push":
         return None
@@ -413,6 +425,9 @@ def push_rejected_non_fast_forward(failure: Failure) -> Hint | None:
     )
 
 
+# A `git merge` or `git switch` refused because it would overwrite local
+# changes.
+# <fragment id="cc-fHYVuAfPkR" following="3"></fragment>
 def stash_local_changes(failure: Failure) -> Hint | None:
     repo = failure.repo
     if failure.command.subcommand not in ("merge", "switch") or repo is None:
@@ -482,6 +497,7 @@ def stash_local_changes(failure: Failure) -> Hint | None:
     )
 
 
+# The reactive checks; `explain` runs each one on a failed command.
 REACTIVE_CHECKS: list[Callable[[Failure], Hint | None]] = [
     reactive_merge_conflicts,
     pull_blocked_local_changes,
@@ -502,6 +518,9 @@ FAILURE_COUNTS_PATH = "git-hints/integration-failures.json"
 FAILURE_THRESHOLD = 5
 
 
+# The hint that `record_integration_outcome` asks for once the count of
+# qualifying failures reaches the threshold.
+# <fragment id="cc-TWHCQVoApl" following="1"></fragment>
 def rebase_after_repeated_integration_failures() -> Hint:
     return Hint(
         id="rebase-after-repeated-integration-failures",
@@ -537,6 +556,7 @@ def rebase_after_repeated_integration_failures() -> Hint:
 
 # True for a push rejected as non-fast-forward, or a merging pull refused
 # because the branches diverged.
+# <fragment id="cc-RdPj5P6jPk" following="1"></fragment>
 def is_qualifying_failure(command: GitCommand, stderr: str) -> bool:
     if command.subcommand == "push":
         return "(fetch first)" in stderr or "(non-fast-forward)" in stderr
@@ -548,6 +568,7 @@ def is_qualifying_failure(command: GitCommand, stderr: str) -> bool:
 
 
 # Read the stored counts; a missing or unreadable file means no failures.
+# <fragment id="cc-8S-y_3T3_p" following="1"></fragment>
 def load_counts(path: Path) -> dict[str, dict[str, object]]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -566,6 +587,7 @@ def load_counts(path: Path) -> dict[str, dict[str, object]]:
 
 # Write the counts atomically, so an interrupted write can't leave a partial
 # file.
+# <fragment id="cc-KtDvcgEH3C" following="1"></fragment>
 def save_counts(path: Path, counts: dict[str, dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
@@ -578,6 +600,7 @@ def save_counts(path: Path, counts: dict[str, dict[str, object]]) -> None:
 # Record the outcome of a push or pull for the current branch. Return true
 # when this failure reaches the threshold, which displays the rebase hint and
 # resets the count.
+# <fragment id="cc-bcL5k0LBSu" following="5"></fragment>
 def record_integration_outcome(
     repo: Repo, command: GitCommand, returncode: int, stderr: str
 ) -> bool:

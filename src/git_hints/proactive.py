@@ -80,6 +80,7 @@ class Context:
 #
 # This is the only hint shown outside a working tree, and the only one that
 # doesn't take a `Context`.
+# <fragment id="cc-uKoL3zumN0" following="1"></fragment>
 def not_a_repo() -> Hint:
     return Hint(
         id="not-a-repo",
@@ -114,6 +115,7 @@ def not_a_repo() -> Hint:
 #
 # `merge-conflicts` is both proactive and reactive, so `reactive.py` uses this
 # check too.
+# <fragment id="cc-9QC9X1JxiQ" following="1"></fragment>
 def merge_conflicts(ctx: Context) -> Hint | None:
     repo = ctx.repo
     if not repo.unmerged_paths:
@@ -164,6 +166,9 @@ OPERATION_SUMMARIES = {
 }
 
 
+# A merge, rebase, cherry-pick, or revert that Git paused, waiting for the user
+# to continue or abort it.
+# <fragment id="cc-di6OqofRB3" following="3"></fragment>
 def operation_in_progress(ctx: Context) -> Hint | None:
     repo = ctx.repo
     operation = repo.operations.paused
@@ -237,6 +242,7 @@ def operation_in_progress(ctx: Context) -> Hint | None:
 
 # The specification asks that a healthy bisect be explained rather than
 # treated as an error; this hint does that.
+# <fragment id="cc-ljH8gZ-mNp" following="1"></fragment>
 def bisect_in_progress(ctx: Context) -> Hint | None:
     if not ctx.repo.operations.bisect:
         return None
@@ -271,6 +277,7 @@ def bisect_in_progress(ctx: Context) -> Hint | None:
 
 # HEAD
 # ----
+# <fragment id="cc-W6y1mXRT18" following="13"></fragment>
 def detached_head(ctx: Context) -> Hint | None:
     repo = ctx.repo
     # Step 1: an attached HEAD, including an unborn branch, isn't detached.
@@ -346,6 +353,8 @@ def detached_head(ctx: Context) -> Hint | None:
     )
 
 
+# The current branch has no commits yet, as in a new repository.
+# <fragment id="cc-1t5STqtPXT" following="7"></fragment>
 def no_commits(ctx: Context) -> Hint | None:
     repo = ctx.repo
     # Step 1.
@@ -416,6 +425,7 @@ def no_commits(ctx: Context) -> Hint | None:
 # --porcelain=v2 --branch`. The counts compare against the remote-tracking
 # branch as of the last fetch, so they're qualified unless `--fetch`
 # succeeded.
+# <fragment id="cc-KEv1T6NhPn" following="3"></fragment>
 def diverged(ctx: Context) -> Hint | None:
     repo = ctx.repo
     status = repo.branch_status
@@ -465,6 +475,8 @@ def diverged(ctx: Context) -> Hint | None:
     )
 
 
+# The current branch lacks commits that its upstream has, as of the last fetch.
+# <fragment id="cc-95P57OWpAn" following="5"></fragment>
 def behind(ctx: Context) -> Hint | None:
     repo = ctx.repo
     status = repo.branch_status
@@ -504,6 +516,8 @@ def behind(ctx: Context) -> Hint | None:
     )
 
 
+# The current branch has commits that its upstream lacks, as of the last fetch.
+# <fragment id="cc-o-cjE_vyrW" following="3"></fragment>
 def push_ahead(ctx: Context) -> Hint | None:
     repo = ctx.repo
     branch = repo.current_branch
@@ -545,12 +559,14 @@ def push_ahead(ctx: Context) -> Hint | None:
     )
 
 
+# Git reads a leading `+` in a push refspec as a request to force the update,
+# so a branch whose name starts with `+` is named by its full ref instead.
 def push_source(branch: str) -> str:
-    # Git reads a leading `+` in a push refspec as a request to force the
-    # update, so such a branch is named by its full ref instead.
     return f"refs/heads/{branch}" if branch.startswith("+") else branch
 
 
+# The current branch has commits but no upstream to push to.
+# <fragment id="cc-wa0iZk_9m1" following="3"></fragment>
 def no_upstream_branch(ctx: Context) -> Hint | None:
     repo = ctx.repo
     branch = repo.current_branch
@@ -592,6 +608,7 @@ def no_upstream_branch(ctx: Context) -> Hint | None:
 
 # Changes
 # -------
+# <fragment id="cc-8ZNEdXAewK" following="1"></fragment>
 def staged_and_unstaged_changes(ctx: Context) -> Hint | None:
     repo = ctx.repo
     if repo.unmerged_paths:
@@ -629,6 +646,8 @@ def staged_and_unstaged_changes(ctx: Context) -> Hint | None:
     )
 
 
+# Staged changes only: suggest reviewing them before committing.
+# <fragment id="cc-J2PBc5XytA" following="3"></fragment>
 def staged_changes(ctx: Context) -> Hint | None:
     repo = ctx.repo
     # A rebase commits for you as it continues.
@@ -664,6 +683,8 @@ def staged_changes(ctx: Context) -> Hint | None:
     )
 
 
+# Unstaged changes to tracked files: suggest staging them.
+# <fragment id="cc-Qpo4Ggakay" following="1"></fragment>
 def unstaged_changes(ctx: Context) -> Hint | None:
     repo = ctx.repo
     if repo.unmerged_paths or not repo.has_unstaged_changes:
@@ -704,6 +725,7 @@ GENERATED_DIRECTORIES = (
 # Return the `.gitignore` pattern for an untracked path that looks generated
 # or secret, or `None` for an ordinary file. Patterns without a leading slash
 # match at any depth, so they also cover nested paths.
+# <fragment id="cc-fNHLJtCd6x" following="3"></fragment>
 def ignore_pattern(
     # A path relative to the repository root, using `/` separators.
     path: str,
@@ -722,6 +744,7 @@ def ignore_pattern(
 # Return untracked paths relative to the repository root. `-z` output names
 # each file without Git's quoting; a rename or copy record is followed by an
 # extra record holding the original path.
+# <fragment id="cc-tqkBnsZjqU" following="3"></fragment>
 def untracked_paths(repo: Repo) -> list[str]:
     # `--untracked-files=all` overrides `status.showUntrackedFiles` and lists
     # individual files rather than untracked directories.
@@ -739,6 +762,9 @@ def untracked_paths(repo: Repo) -> list[str]:
     return paths
 
 
+# Untracked files: suggest staging the ordinary ones and ignoring those that
+# look generated or secret.
+# <fragment id="cc-ZxBrYp18rz" following="1"></fragment>
 def untracked_files(ctx: Context) -> Hint | None:
     repo = ctx.repo
     paths = untracked_paths(repo)
@@ -811,6 +837,7 @@ def untracked_files(ctx: Context) -> Hint | None:
 # have staged or unstaged changes (C): $2C > T$. Disabling rename detection
 # counts a renamed file's original path without also counting its
 # destination, which isn't in `HEAD`.
+# <fragment id="cc-QgktVTrhP3" following="3"></fragment>
 def many_changed_files(ctx: Context) -> Hint | None:
     repo = ctx.repo
     operations = repo.operations
@@ -876,6 +903,9 @@ def many_changed_files(ctx: Context) -> Hint | None:
     )
 
 
+# Uncommitted changes on the default branch: suggest making them on a new
+# branch.
+# <fragment id="cc-279T3whLND" following="11"></fragment>
 def changes_on_default_branch(ctx: Context) -> Hint | None:
     repo = ctx.repo
     # Step 1.
@@ -941,6 +971,7 @@ def changes_on_default_branch(ctx: Context) -> Hint | None:
 # `--exclude-standard` applies `.gitignore`, `.git/info/exclude`, and the
 # global excludes file. The `:/` pathspec and `--full-name` cover the whole
 # repository even from a subdirectory.
+# <fragment id="cc-IACUO8h1uv" following="3"></fragment>
 def tracked_but_ignored(ctx: Context) -> Hint | None:
     repo = ctx.repo
     # Committing the removal can't succeed until conflicts are resolved.
@@ -1016,6 +1047,7 @@ def tracked_but_ignored(ctx: Context) -> Hint | None:
 # after switching branches. The hint is hidden as a whole during an operation,
 # a `git am` session, or a bisect, and while conflicts remain: applying a stash
 # then would interfere, and the hints explaining that state come first.
+# <fragment id="cc-xuz-Ggq--E" following="5"></fragment>
 def stash_entries(ctx: Context) -> Hint | None:
     repo = ctx.repo
     operations = repo.operations
@@ -1092,6 +1124,7 @@ def stash_entries(ctx: Context) -> Hint | None:
 
 # Other local branches
 # --------------------
+# <fragment id="cc-mRIYwnNceC" following="1"></fragment>
 def unpushed_branches(ctx: Context) -> Hint | None:
     repo = ctx.repo
     operations = repo.operations
@@ -1221,6 +1254,7 @@ def unpushed_branches(ctx: Context) -> Hint | None:
 
 # Configuration
 # -------------
+# <fragment id="cc-t-jVTDbie2" following="3"></fragment>
 def commit_identity(ctx: Context) -> Hint | None:
     repo = ctx.repo
     commands = []

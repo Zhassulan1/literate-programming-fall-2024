@@ -59,6 +59,7 @@ def trace_environments(path: Path) -> list[tuple[list[str], dict[str, str]]]:
 
 # Location
 # --------
+# <fragment id="cc-dBQV8bLOwN" following="1"></fragment>
 def test_not_a_repo(tmp_path_factory: pytest.TempPathFactory) -> None:
     (directory,) = make_temps(tmp_path_factory, 1)
     result = git(directory, "rev-parse", "--is-inside-work-tree", check=False)
@@ -75,6 +76,9 @@ def test_not_a_repo(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "not-a-repo" not in hint_ids(directory)
 
 
+# A bare repository and a `.git` directory are repositories without a working
+# tree.
+# <fragment id="cc-t4HworymM5" following="1"></fragment>
 def test_not_inside_work_tree(tmp_path_factory: pytest.TempPathFactory) -> None:
     bare, repo = make_temps(tmp_path_factory, 2)
     make_repo(bare, [["git", "init", "--bare", "-b", "main"]])
@@ -88,6 +92,7 @@ def test_not_inside_work_tree(tmp_path_factory: pytest.TempPathFactory) -> None:
         assert result.stdout == ""
 
 
+# The test case for the inspection environment of Language and libraries.
 def test_inspection_environment(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -247,6 +252,7 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 # `detached-head`
 # ---------------
+# <fragment id="cc-R_xrTpSWD5" following="9"></fragment>
 def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
     local, remote = make_temps(tmp_path_factory, 2)
     config_user("user1", "user1@example.com")
@@ -407,6 +413,7 @@ def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 # An unreadable HEAD is reported separately, with a nonzero exit, while other
 # hints are still shown.
+# <fragment id="cc-1N9dE1ptIi" following="3"></fragment>
 def test_invalid_detached_head(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -426,6 +433,7 @@ def test_invalid_detached_head(
 
 # `no-commits`
 # ------------
+# <fragment id="cc-k-Gs9rL-ZA" following="1"></fragment>
 def test_no_commits(tmp_path_factory: pytest.TempPathFactory) -> None:
     local, remote = make_temps(tmp_path_factory, 2)
     config_user("user1", "user1@example.com")
@@ -596,6 +604,8 @@ def check_operation_block(block: str, operation: str) -> None:
             assert f"git {other} --abort" not in text
 
 
+# The `operation-in-progress` test case, for each of the four operations.
+# <fragment id="cc-2frDb8mX76" following="13"></fragment>
 def test_operation_in_progress(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -761,6 +771,7 @@ def test_operation_in_progress(
 
 # `commit-identity`
 # -----------------
+# <fragment id="cc-Y1rdknQ6Wy" following="5"></fragment>
 def test_commit_identity(tmp_path_factory: pytest.TempPathFactory) -> None:
     (repo,) = make_temps(tmp_path_factory, 1)
     make_repo(repo, [["git", "init", "-b", "main"]])

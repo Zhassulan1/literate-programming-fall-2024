@@ -41,6 +41,7 @@ def branch_upstream(repo: Path) -> str:
 
 # `push-ahead`
 # ------------
+# <fragment id="cc-4y5nYGCo86" following="5"></fragment>
 def test_push_ahead(tmp_path_factory: pytest.TempPathFactory) -> None:
     remote, local, other = make_temps(tmp_path_factory, 3)
     config_user("user1", "user1@example.com")
@@ -137,6 +138,8 @@ def behind_setup(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]:
     return repo1, repo2
 
 
+# The `behind` test case, after the setup above.
+# <fragment id="cc-wvWM_xhJVH" following="3"></fragment>
 def test_behind(tmp_path_factory: pytest.TempPathFactory) -> None:
     repo1, repo2 = behind_setup(tmp_path_factory)
     assert branch_ab(repo2) == "# branch.ab +0 -0"
@@ -186,6 +189,7 @@ def test_behind(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 # `diverged`
 # ----------
+# <fragment id="cc-EBrzwxTdKn" following="1"></fragment>
 def test_diverged(tmp_path_factory: pytest.TempPathFactory) -> None:
     _, repo2 = behind_setup(tmp_path_factory)
     commit_file(repo2, "bar.txt", "zzz", "Add bar.")
@@ -216,6 +220,8 @@ def test_diverged(tmp_path_factory: pytest.TempPathFactory) -> None:
     )
 
 
+# `behind` and `diverged` during a merge.
+# <fragment id="cc-hv2RyOfXis" following="1"></fragment>
 def test_upstream_hints_suppressed_during_merge(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -243,6 +249,7 @@ def test_upstream_hints_suppressed_during_merge(
 
 # `no-upstream-branch`
 # --------------------
+# <fragment id="cc-t7V1Ualy4j" following="1"></fragment>
 def test_no_upstream_branch(tmp_path_factory: pytest.TempPathFactory) -> None:
     first, second = make_temps(tmp_path_factory, 2)
     make_repo(first, [["git", "init", "-b", "main"]])
@@ -278,6 +285,7 @@ def test_no_upstream_branch(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 # `unpushed-branches`
 # -------------------
+# <fragment id="cc-LJhA9bcV9b" following="1"></fragment>
 def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
     remote, local, single = make_temps(tmp_path_factory, 3)
     config_user("user1", "user1@example.com")

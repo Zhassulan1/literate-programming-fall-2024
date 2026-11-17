@@ -329,6 +329,9 @@ The Conditions of the hints below assume this check and do not repeat it.
      9. Run `git-hints --all --ids-only` in the temp dir. Verify that
         `unstaged-changes` is absent.
 
+<h4 id="cc-XiyNkDwnZ0" data-gather="cc-Qpo4Ggakay cc-aTOgPqcxmd
+cc-aZS__ARrao">Implementation of Stage files</h4>
+
 ### Push
 
 * Hint: Do you want to
@@ -400,6 +403,9 @@ The Conditions of the hints below assume this check and do not repeat it.
       `# branch.ab +1 -0`. Run `git-hints --all --ids-only` and verify that
       `push-ahead` is absent because the upstream is a local branch.
 
+<h4 id="cc-pN1F0JJNnE" data-gather="cc-o-cjE_vyrW cc-4y5nYGCo86">Implementation
+of Push</h4>
+
 ### Clone a repository
 
 * Hint: Would you like to clone a
@@ -438,6 +444,9 @@ The Conditions of the hints below assume this check and do not repeat it.
      `git-hints` exits normally.
   4. Run `git init -b main`, then `git-hints --all --ids-only` again. Verify
      that `not-a-repo` is absent.
+
+<h4 id="cc-An9vwKWLTq" data-gather="cc-uKoL3zumN0 cc-dBQV8bLOwN
+cc-t4HworymM5">Implementation of Clone a repository</h4>
 
 ### Keep unstaged changes out of this commit?
 
@@ -530,6 +539,9 @@ The Conditions of the hints below assume this check and do not repeat it.
      conflict exists.
   9. Run `git merge --abort` as cleanup, including if an assertion fails.
 
+<h4 id="cc-vmPrngK34R" data-gather="cc-8ZNEdXAewK cc-IYC8MJnREa
+cc-aZS__ARrao">Implementation of Keep unstaged changes out of this commit?</h4>
+
 ### Branch is behind upstream
 
 * Hint: Do you want to
@@ -590,6 +602,9 @@ The Conditions of the hints below assume this check and do not repeat it.
       `behind` appears even though `repo2` has not run `git fetch` since this
       commit.
 
+<h4 id="cc-c6L5RbacL8" data-gather="cc-95P57OWpAn cc-wvWM_xhJVH
+cc-hv2RyOfXis">Implementation of Branch is behind upstream</h4>
+
 ### Branch has diverged from upstream
 
 * Hint: Your branch has diverged from its upstream. Do you want to integrate the
@@ -637,6 +652,9 @@ The Conditions of the hints below assume this check and do not repeat it.
      --no-rebase` and then `git push`, offers `git pull --rebase` with a
      `Caution:` prefix as the alternative, and links to the official `git pull`
      and `git push` documentation.
+
+<h4 id="cc-n6-sWSouvy" data-gather="cc-KEv1T6NhPn cc-EBrzwxTdKn
+cc-hv2RyOfXis">Implementation of Branch has diverged from upstream</h4>
 
 ### Configure an upstream branch?
 
@@ -695,6 +713,9 @@ The Conditions of the hints below assume this check and do not repeat it.
   10. Run `git switch -c +plus` and verify that `git-hints --all` recommends
       `git push -u origin refs/heads/+plus`.
 
+<h4 id="cc-vvhZq4EYmH" data-gather="cc-wa0iZk_9m1 cc-t7V1Ualy4j">Implementation
+of Configure an upstream branch?</h4>
+
 ### Review staged changes before committing?
 
 * Hint: Would you like to review your
@@ -738,6 +759,9 @@ The Conditions of the hints below assume this check and do not repeat it.
      official `git diff` and `git commit` documentation.
   7. Commit the file with `git commit -m "Add foo."` and run `git-hints --all
      --ids-only` again. Verify that `staged-changes` is absent.
+
+<h4 id="cc-yoDWWB2nDe" data-gather="cc-J2PBc5XytA cc-IYC8MJnREa
+cc-EoacSNs7WO">Implementation of Review staged changes before committing?</h4>
 
 ### Configure your commit identity?
 
@@ -784,6 +808,9 @@ The Conditions of the hints below assume this check and do not repeat it.
   6. Run `git config --local user.email ""`, then `git-hints --all`. Verify
      that `commit-identity` appears and suggests `git config --local
      user.email "you@example.com"`.
+
+<h4 id="cc-HAYrohNn1l" data-gather="cc-t-jVTDbie2 cc-Y1rdknQ6Wy">Implementation
+of Configure your commit identity?</h4>
 
 ### Stage or ignore untracked files
 
@@ -883,6 +910,10 @@ The Conditions of the hints below assume this check and do not repeat it.
       status.showUntrackedFiles no`, then create an ordinary untracked file.
       Verify that `git-hints --all --ids-only` still includes `untracked-files`,
       since inspection explicitly uses `--untracked-files=all`.
+
+<h4 id="cc-75m0Pp8pBz" data-gather="cc-fNHLJtCd6x cc-tqkBnsZjqU cc-ZxBrYp18rz
+cc-oj-ugcZ3JM cc-foyv8stkE- cc-u51HKEcV_T cc-7lb0-SyE0N
+cc-dxNlQct_Mr">Implementation of Stage or ignore untracked files</h4>
 
 ### Review and commit widespread changes?
 
@@ -1005,6 +1036,10 @@ The Conditions of the hints below assume this check and do not repeat it.
       more than half of the HEAD-tracked paths have changes. Run `git-hints
       --all --ids-only`; verify that `many-changed-files` is absent. Run `git
       merge --abort` during cleanup, including after a failed assertion.
+
+<h4 id="cc-cMZXIodLBe" data-gather="cc-QgktVTrhP3 cc-5KlqlCoqol cc--7X6Apvyj6
+cc-cjZpl1qw15 cc-i5rx9oXlOA cc-WN5dCfBbqn cc-_a7HQDR4Eb
+cc-zjIQBL5_DQ">Implementation of Review and commit widespread changes?</h4>
 
 ### Detached HEAD state
 
@@ -1154,6 +1189,9 @@ The Conditions of the hints below assume this check and do not repeat it.
       `bisect-in-progress` is present. Delete the file in cleanup even if an
       assertion fails, then finish with `git switch saved-work`.
 
+<h4 id="cc-RBigmUgMo9" data-gather="cc-W6y1mXRT18 cc-R_xrTpSWD5
+cc-1N9dE1ptIi">Implementation of Detached HEAD state</h4>
+
 ### Bisect in progress
 
 * Hint: A
@@ -1175,6 +1213,9 @@ The Conditions of the hints below assume this check and do not repeat it.
   `detached-head`, Conditions step 4, exists (Hint structure, item 7).
 
 * Test case: `detached-head`, steps 9–10, 15, and 16.
+
+<h4 id="cc-kf1W07qLA0" data-gather="cc-ljH8gZ-mNp cc-R_xrTpSWD5">Implementation
+of Bisect in progress</h4>
 
 ### Current branch has no commits yet
 
@@ -1284,6 +1325,9 @@ The Conditions of the hints below assume this check and do not repeat it.
       `no-upstream-branch` are absent. Ensure `git switch main` runs in cleanup
       even if an assertion fails.
 
+<h4 id="cc-8ZdyhzUTeY" data-gather="cc-1t5STqtPXT cc-k-Gs9rL-ZA">Implementation
+of Current branch has no commits yet</h4>
+
 ### Make your changes on a new branch?
 
 * Hint: You have uncommitted changes on `<branch>`, the branch your remote
@@ -1375,6 +1419,9 @@ The Conditions of the hints below assume this check and do not repeat it.
      symbolic-ref --quiet --short HEAD` prints `main`. Run `git-hints --all
      --ids-only` and verify that `changes-on-default-branch` is absent. Ensure
      `git merge --abort` runs in cleanup even if an assertion fails.
+
+<h4 id="cc-4aDHRrvpLq" data-gather="cc-279T3whLND cc-QYkz_SkNyN">Implementation
+of Make your changes on a new branch?</h4>
 
 ### Finish or cancel the operation in progress?
 
@@ -1551,6 +1598,9 @@ The Conditions of the hints below assume this check and do not repeat it.
       4. Run `git revert --abort`, then `git-hints --all --ids-only`; verify
          that `operation-in-progress` is absent.
 
+<h4 id="cc-kq-fXRC0f1" data-gather="cc-di6OqofRB3 cc-2frDb8mX76">Implementation
+of Finish or cancel the operation in progress?</h4>
+
 ### Stop tracking ignored files?
 
 * Hint: Do you want Git to stop tracking files that match active
@@ -1644,6 +1694,9 @@ The Conditions of the hints below assume this check and do not repeat it.
   8. Clean up: run `git rm -r --cached build`, then `git-hints --all
      --ids-only`; verify that `tracked-but-ignored` is absent.
 
+<h4 id="cc-fFGcr1NqvX" data-gather="cc-IACUO8h1uv cc-pZqo9GkkDO
+cc-DFDJB39a74">Implementation of Stop tracking ignored files?</h4>
+
 ### Keep track of stash entries?
 
 * Hint: This repository has `<n>` in its
@@ -1722,6 +1775,9 @@ The Conditions of the hints below assume this check and do not repeat it.
      fails.
   7. Run `git bisect start` and verify that `stash-entries` is absent. Run `git
      bisect reset` as cleanup.
+
+<h4 id="cc-0soiHOsJY6" data-gather="cc-xuz-Ggq--E cc-bf_cVmh5QK">Implementation
+of Keep track of stash entries?</h4>
 
 ### Push your other local branches?
 
@@ -1879,6 +1935,9 @@ The Conditions of the hints below assume this check and do not repeat it.
       verify that the hint suggests `git push origin refs/heads/+plus`.
   14. In `local`, run `git remote remove origin` and verify that the hint is
       absent.
+
+<h4 id="cc-zcMdEzgNbb" data-gather="cc-mRIYwnNceC cc-LJhA9bcV9b">Implementation
+of Push your other local branches?</h4>
 
 ### Fetch to see the newest remote commits?
 
@@ -2056,6 +2115,9 @@ solely to check its hints.
   9. Run `git-hints explain -- git merge nonexistent-test-branch`; require a
      nonzero exit code and no `merge-conflicts` hint.
 
+<h4 id="cc-Qe4D-VyHoq" data-gather="cc-9QC9X1JxiQ cc-C0LcF15kTG
+cc-Rw3DcC4sWS">Implementation of Resolve merge conflicts?</h4>
+
 ### Preserve local changes before pulling?
 
 * Hint: The attempted
@@ -2141,6 +2203,9 @@ solely to check its hints.
      change. Run `git-hints --all --ids-only`; verify `merge-conflicts` is
      present and `pull-blocked-local-changes` is absent.
 
+<h4 id="cc-TpCTVdNlDH" data-gather="cc-kFNwYqo95d cc-xLHUwTLCaB">Implementation
+of Preserve local changes before pulling?</h4>
+
 ### Push rejected: non-fast-forward
 
 * Hint: Git rejected the
@@ -2210,6 +2275,10 @@ solely to check its hints.
      `push-rejected-non-fast-forward` hint.
   8. Run `git-hints explain -- git push nonexistent-test-remote main`; require a
      nonzero exit code and no `push-rejected-non-fast-forward` hint.
+
+<h4 id="cc-ZyX5J8oFh2" data-gather="cc-Yxt_xzkQXb cc-48v27bgD9d cc-l-hZ6zBWvd
+cc-7GTkWmWNSa cc-YBq7c7WLC9">Implementation of Push rejected:
+non-fast-forward</h4>
 
 ### Stash local changes?
 
@@ -2285,6 +2354,9 @@ solely to check its hints.
      stage it. Run `git-hints explain -- git switch main`; require a nonzero
      exit code. Verify that the `stash-local-changes` block recommends an
      external backup and contains no `git stash push`.
+
+<h4 id="cc-IlWt_TeTgh" data-gather="cc-fHYVuAfPkR cc-bO1fqbpLXr">Implementation
+of Stash local changes?</h4>
 
 ### Suggest `git pull --rebase`?
 
@@ -2461,6 +2533,11 @@ solely to check its hints.
 
      Ensure that `git merge --abort` is also performed during test cleanup if
      any earlier assertion fails.
+
+<h4 id="cc-FzUJFZ-YbX" data-gather="cc-60-KYhf2jN cc-TWHCQVoApl cc-RdPj5P6jPk
+cc-8S-y_3T3_p cc-KtDvcgEH3C cc-bcL5k0LBSu cc-M2HloJSnsb cc-Y2dnawDr-G
+cc-z0lbi1ruKs cc-yW4UfUzYCQ cc-0JEsPE5X0v cc-q8AWZxQOt8 cc-hPz5NJ8AC0
+cc-tXA3ths8Qy">Implementation of Suggest <code>git pull --rebase</code>?</h4>
 
 Language and libraries
 ----------------------

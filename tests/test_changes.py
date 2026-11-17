@@ -48,6 +48,7 @@ COMMIT = "https://git-scm.com/docs/git-commit#_description"
 
 # `unstaged-changes`
 # ------------------
+# <fragment id="cc-aTOgPqcxmd" following="1"></fragment>
 def test_unstaged_changes(tmp_path_factory: pytest.TempPathFactory) -> None:
     (repo,) = make_temps(tmp_path_factory, 1)
     config_user("user1", "user1@example.com")
@@ -68,6 +69,7 @@ def test_unstaged_changes(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 # `staged-and-unstaged-changes` and `staged-changes`
 # --------------------------------------------------
+# <fragment id="cc-IYC8MJnREa" following="7"></fragment>
 def test_staged_and_unstaged_changes(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -114,6 +116,8 @@ def test_staged_and_unstaged_changes(
         assert COMMIT in block
 
 
+# The changes hints while a merge conflict remains.
+# <fragment id="cc-aZS__ARrao" following="1"></fragment>
 def test_staged_and_unstaged_conflict_suppression(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -151,6 +155,8 @@ def test_staged_and_unstaged_conflict_suppression(
         git(repo, "merge", "--abort")
 
 
+# The `staged-changes` test case.
+# <fragment id="cc-EoacSNs7WO" following="1"></fragment>
 def test_staged_changes(tmp_path_factory: pytest.TempPathFactory) -> None:
     (repo,) = make_temps(tmp_path_factory, 1)
     make_repo(repo, [["git", "init", "-b", "main"]])
@@ -189,6 +195,8 @@ def untracked_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return repo
 
 
+# The `untracked-files` test case.
+# <fragment id="cc-oj-ugcZ3JM" following="1"></fragment>
 def test_untracked_files(tmp_path_factory: pytest.TempPathFactory) -> None:
     repo = untracked_repo(tmp_path_factory)
 
@@ -236,6 +244,8 @@ def test_untracked_files(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "untracked-files" not in hint_ids(repo)
 
 
+# Untracked paths with spaces and non-ASCII characters.
+# <fragment id="cc-foyv8stkE-" following="3"></fragment>
 def test_untracked_spaces_and_unicode(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -261,6 +271,8 @@ def test_untracked_spaces_and_unicode(
     assert "untracked-files" not in hint_ids(repo)
 
 
+# Ignore candidates in nested directories.
+# <fragment id="cc-u51HKEcV_T" following="3"></fragment>
 def test_untracked_nested_ignore_candidates(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -293,6 +305,8 @@ def test_untracked_nested_ignore_candidates(
     ]
 
 
+# At most five paths of each group are listed.
+# <fragment id="cc-7lb0-SyE0N" following="1"></fragment>
 def test_untracked_limits(tmp_path_factory: pytest.TempPathFactory) -> None:
     repo = untracked_repo(tmp_path_factory)
     ordinary = [f"file{n}.txt" for n in range(6)]
@@ -319,6 +333,8 @@ def test_untracked_limits(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "and 1 more" in text
 
 
+# `status.showUntrackedFiles` does not hide untracked files from the hint.
+# <fragment id="cc-dxNlQct_Mr" following="1"></fragment>
 def test_untracked_ignores_status_configuration(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -330,6 +346,7 @@ def test_untracked_ignores_status_configuration(
 
 # `many-changed-files`
 # --------------------
+# <fragment id="cc-5KlqlCoqol" following="3"></fragment>
 def test_many_changed_files(tmp_path_factory: pytest.TempPathFactory) -> None:
     (repo,) = make_temps(tmp_path_factory, 1)
     config_user("user1", "user1@example.com")
@@ -370,6 +387,8 @@ def test_many_changed_files(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "many-changed-files" not in hint_ids(repo)
 
 
+# Deleted files count as changed files.
+# <fragment id="cc--7X6Apvyj6" following="1"></fragment>
 def test_many_changed_files_deletions(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -383,6 +402,8 @@ def test_many_changed_files_deletions(
     assert "many-changed-files" in hint_ids(repo)
 
 
+# A branch without commits.
+# <fragment id="cc-cjZpl1qw15" following="1"></fragment>
 def test_many_changed_files_without_commits(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -402,6 +423,8 @@ def test_many_changed_files_without_commits(
     assert "many-changed-files" not in result.stdout.splitlines()
 
 
+# A repository with fewer than four tracked files.
+# <fragment id="cc-i5rx9oXlOA" following="1"></fragment>
 def test_many_changed_files_small_repository(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -412,6 +435,8 @@ def test_many_changed_files_small_repository(
     assert "many-changed-files" not in hint_ids(repo)
 
 
+# Renamed files.
+# <fragment id="cc-WN5dCfBbqn" following="1"></fragment>
 def test_many_changed_files_rename(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -425,6 +450,8 @@ def test_many_changed_files_rename(
     assert "many-changed-files" in hint_ids(repo)
 
 
+# Changes that were staged and then restored.
+# <fragment id="cc-_a7HQDR4Eb" following="1"></fragment>
 def test_many_changed_files_staged_then_restored(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -446,6 +473,8 @@ def test_many_changed_files_staged_then_restored(
     assert "many-changed-files" in hint_ids(repo)
 
 
+# The hint while a merge conflict remains.
+# <fragment id="cc-zjIQBL5_DQ" following="1"></fragment>
 def test_many_changed_files_conflict_suppression(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -479,6 +508,7 @@ def test_many_changed_files_conflict_suppression(
 
 # `tracked-but-ignored`
 # ---------------------
+# <fragment id="cc-pZqo9GkkDO" following="5"></fragment>
 def test_tracked_but_ignored(tmp_path_factory: pytest.TempPathFactory) -> None:
     (repo,) = make_temps(tmp_path_factory, 1)
     make_repo(repo, [["git", "init", "-b", "main"]])
@@ -566,6 +596,8 @@ def test_tracked_but_ignored(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "tracked-but-ignored" not in hint_ids(repo)
 
 
+# The hint while a merge conflict remains.
+# <fragment id="cc-DFDJB39a74" following="1"></fragment>
 def test_tracked_but_ignored_suppressed_during_conflict(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -600,6 +632,7 @@ def test_tracked_but_ignored_suppressed_during_conflict(
 
 # `changes-on-default-branch`
 # ---------------------------
+# <fragment id="cc-QYkz_SkNyN" following="1"></fragment>
 def test_changes_on_default_branch(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -721,6 +754,7 @@ def test_changes_on_default_branch(
 
 # `stash-entries`
 # ---------------
+# <fragment id="cc-bf_cVmh5QK" following="1"></fragment>
 def test_stash_entries(tmp_path_factory: pytest.TempPathFactory) -> None:
     (repo,) = make_temps(tmp_path_factory, 1)
     config_user("user1", "user1@example.com")
