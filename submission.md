@@ -1020,9 +1020,9 @@ implement and review the matching code and tests.
 
 #### Specification review rounds
 
-Each round used GitHub Copilot in VS Code (Agent mode, automatic model
-selection). Round 1 asked it to review the latest commit; rounds 2 and 3 used
-the prompt shown under Last specification review.
+Each round used GitHub Copilot in VS Code (Agent mode, automatically routed to
+`mai-code-1.1-flash`). Round 1 asked it to review the latest commit; rounds 2
+and 3 used the prompt shown under Last specification review.
 
 | Round | Findings | Main changes made                                                                                                                                                                                    |
 | ----- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1032,12 +1032,12 @@ the prompt shown under Last specification review.
 
 #### Last specification review
 
-Prompting GitHub Copilot in VS Code (Agent mode, automatic model selection) with
-the following prompt produced the output below; strikethrough indicates LLM
-output that I deemed incorrect or irrelevant. Hint structure, item 7, requires
-the `error/blocked` hint only for an unresolved or stopped operation, and its
-next sentence says a healthy bisect is explained by `bisect-in-progress`, so the
-two statements do not contradict each other.
+Prompting GitHub Copilot in VS Code (Agent mode, automatically routed to
+`mai-code-1.1-flash`) with the following prompt produced the output below;
+strikethrough indicates LLM output that I deemed incorrect or irrelevant. Hint
+structure, item 7, requires the `error/blocked` hint only for an unresolved or
+stopped operation, and its next sentence says a healthy bisect is explained by
+`bisect-in-progress`, so the two statements do not contradict each other.
 
 ```text
 Review the following parts of spec.md: the "Configure your commit identity?" hint, the "Detached HEAD state" hint, the "Bisect in progress" hint, the description of explain under CLI commands, and Hint structure, item 7. Do not modify any files. Report findings as a numbered list, then the total number of findings.
@@ -1055,8 +1055,9 @@ Total findings: 1
 #### Implementation review rounds
 
 Each round used GitHub Copilot in VS Code (Agent mode, automatic model
-selection; `gpt-6-luna` for round 1, `mai-code-1.1-flash` for round 2). Every
-round ended with the full test suite, Ruff, and ty passing.
+selection), which routed the implementation in round 1 to `gpt-6-luna` and the
+reviews in rounds 2 and 3 to `mai-code-1.1-flash`. Every round ended with the
+full test suite, Ruff, and ty passing.
 
 | Round | Findings | Main changes made                                                                                                                                                                                                                                                              |
 | ----- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -1066,8 +1067,8 @@ round ended with the full test suite, Ruff, and ty passing.
 
 #### Last implementation review
 
-Prompting GitHub Copilot in VS Code (Agent mode, automatic model selection) with
-the following prompt produced the output below.
+Prompting GitHub Copilot in VS Code (Agent mode, automatically routed to
+`mai-code-1.1-flash`) with the following prompt produced the output below.
 
 ```text
 Review the code and test changes in the last two commits (git show HEAD~1 HEAD) against spec.md. Check that they implement the spec correctly and follow its Testing rules. Do not modify any files. Report findings as a numbered list, then the total number of findings.
