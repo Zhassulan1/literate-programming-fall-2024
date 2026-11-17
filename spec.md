@@ -2526,19 +2526,22 @@ Plain `git-hints` exits 0, whether or not any hint is triggered, and `git-hints
 explain` returns Git's exit code, except for the usage errors of CLI commands,
 which exit 2, and for the failures of the next paragraph.
 
-Report an unexpected inspection failure, once for each failed command however
-many hints use it, and a failure to launch Git, on standard error as a message
-starting with `git-hints: `, and exit with code 1; for `git-hints explain`,
-these messages follow Git's captured standard error, and this code replaces
-Git's exit code. This applies to both modes, with and without `--ids-only`.
-After an unexpected inspection failure, still print the output that does not
-depend on the failed commands. All output of plain `git-hints` depends on the
-commands of the repository context line (Hint structure, item 1): when one of
-them fails, print nothing on standard output, with or without `--ids-only`.
-When Git cannot be launched, report it once, stop, and print nothing on
-standard output. For `git-hints explain`, this applies to the supplied command;
-an inspection command that cannot be launched after it ran is an unexpected
-inspection failure.
+Report an unexpected inspection failure and a failure to launch Git on
+standard error as a message starting with `git-hints: `, and exit with code 1;
+for `git-hints explain`, these messages follow Git's captured standard error,
+and this code replaces Git's exit code. This applies to both modes, with and
+without `--ids-only`. Report each failed inspection command once, however many
+hints and other parts of inspection, such as the integration-failure counter,
+use it; when it exited with an unexpected code, name the command and that code
+in the message. After an unexpected inspection failure, still print the output
+that does not depend on the failed commands, and `No hints.` when no hint
+triggers. All output of plain `git-hints` depends on the commands of the
+repository context line (Hint structure, item 1): when one of them fails,
+report it, stop inspecting, and print nothing on standard output, with or
+without `--ids-only`. When Git cannot be launched, report it once, stop, and
+print nothing on standard output. For `git-hints explain`, this applies to the
+supplied command; an inspection command that cannot be launched after it ran is
+an unexpected inspection failure.
 
 Decode Git output as UTF-8 (`encoding="utf-8", errors="replace"`), not with the
 locale default. When a path list is parsed, use `-z` or `-c
@@ -2854,11 +2857,12 @@ Test case for the failure reporting of Language and libraries, in
    output is empty, and that its standard error contains both lines again.
 3. Create an empty directory. In the same repository, run `git-hints --all` and
    then `git-hints explain -- git status`, each with `PATH` set to that
-   directory, so that Git cannot be launched. Start `git-hints` through the
-   absolute path of the Python interpreter, because a `git-hints` script could
-   not be found through that `PATH` either. For each run, verify that it exits
-   with code 1, that its standard output is empty, and that its standard error
-   starts with `git-hints: ` and has no other line starting with `git-hints: `.
+   directory, so that Git cannot be launched. Run `git-hints` as
+   `[sys.executable, "-m", "git_hints", ...]`, because a `git-hints` script
+   could not be found through that `PATH` either. For each run, verify that it
+   exits with code 1, that its standard output is empty, and that its standard
+   error starts with `git-hints: ` and has no other line starting with
+   `git-hints: `.
 4. Create a bare repository and a repository with one commit, add the bare
    repository as `origin`, run `git push -u origin main`, then `git commit
    --amend -m <any-message>`, and replace the contents of the index with
