@@ -267,6 +267,12 @@ def test_no_upstream_branch(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert git(first, *upstream).stdout.strip() == "origin/feature-test"
     assert "no-upstream-branch" not in hint_ids(first)
 
+    git(first, "switch", "-c", "+plus")
+    _, found = all_blocks(first)
+    assert "git push -u origin refs/heads/+plus" in commands(
+        found["no-upstream-branch"]
+    )
+
 
 # `unpushed-branches`
 # -------------------
@@ -387,6 +393,25 @@ def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
     finally:
         git(local, "rebase", "--abort")
         git(local, "switch", "main")
+
+    git(local, "switch", "-c", "+plus", "main")
+    commit_file(local, "plus.txt", "plus\n", "Add plus.")
+    git(local, "switch", "main")
+    _, found = all_blocks(local)
+    assert "+plus (no upstream)" in collapse(found["unpushed-branches"])
+    assert "git push -u origin refs/heads/+plus" in commands(
+        found["unpushed-branches"]
+    )
+    git(local, "push", "-u", "origin", "refs/heads/+plus")
+    _, found = all_blocks(local)
+    assert "+plus (" not in collapse(found["unpushed-branches"])
+    git(local, "switch", "+plus")
+    commit_file(local, "plus2.txt", "plus\n", "Add another plus file.")
+    git(local, "switch", "main")
+    _, found = all_blocks(local)
+    assert "git push origin refs/heads/+plus" in commands(
+        found["unpushed-branches"]
+    )
 
     git(local, "remote", "remove", "origin")
     assert "unpushed-branches" not in hint_ids(local)

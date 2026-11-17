@@ -544,6 +544,12 @@ def push_ahead(ctx: Context) -> Hint | None:
     )
 
 
+def push_source(branch: str) -> str:
+    # Git reads a leading `+` in a push refspec as a request to force the
+    # update, so such a branch is named by its full ref instead.
+    return f"refs/heads/{branch}" if branch.startswith("+") else branch
+
+
 def no_upstream_branch(ctx: Context) -> Hint | None:
     repo = ctx.repo
     branch = repo.current_branch
@@ -575,7 +581,7 @@ def no_upstream_branch(ctx: Context) -> Hint | None:
         ),
         commands=(
             Command(
-                code(f"git push -u origin {shell_quote(branch)}"),
+                code(f"git push -u origin {shell_quote(push_source(branch))}"),
                 "Git pushes the current branch to `origin` and configures it "
                 "as the upstream for future pushes and pulls.",
             ),
@@ -1127,12 +1133,16 @@ def unpushed_branches(ctx: Context) -> Hint | None:
         return None
 
     configured = repo.check(
-        "config", "--get-regexp", r"^branch\..*\.merge$", ok=(0, 1)
+        "config",
+        "--name-only",
+        "--get-regexp",
+        r"^branch\..*\.merge$",
+        ok=(0, 1),
     )
     configured_upstreams = {
-        key.removeprefix("branch.").removesuffix(".merge")
+        line.removeprefix("branch.").removesuffix(".merge")
         for line in configured.stdout.splitlines()
-        for key in [line.split(maxsplit=1)[0]]
+        if line
     }
     refs = repo.check(
         "for-each-ref",
@@ -1152,16 +1162,17 @@ def unpushed_branches(ctx: Context) -> Hint | None:
             if "origin" not in remotes or branch in configured_upstreams:
                 continue
             label = "no upstream"
-            command = f"git push -u origin {shell_quote(branch)}"
+            command = f"git push -u origin {shell_quote(push_source(branch))}"
         else:
             ahead = re.fullmatch(r"\[ahead ([0-9]+)\]", track)
             if remote == "." or ahead is None:
                 continue
             count = int(ahead.group(1))
-            label = f"ahead of {upstream} by {plural(count, 'commit')}"
+            label = f"ahead of {code(upstream)} by {plural(count, 'commit')}"
             destination = remote_ref.removeprefix("refs/heads/")
+            source = push_source(branch)
             refspec = (
-                branch if destination == branch else f"{branch}:{destination}"
+                source if destination == branch else f"{source}:{destination}"
             )
             command = f"git push {shell_quote(remote)} {shell_quote(refspec)}"
         reported.append((branch, label, command))
