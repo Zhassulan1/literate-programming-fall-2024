@@ -231,11 +231,12 @@ Hint structure
    that suggests `Caution: git pull --rebase` has `safety: caution` even if its
    priority class is `workflow`.
 
-7. **Operation-in-progress protection**: before recommending a workflow command,
-   determine whether an operation is in progress by checking unmerged index
-   entries and applicable Git paths returned by `git rev-parse --git-path`
-   (`MERGE_HEAD`, `rebase-merge`, `rebase-apply`, `CHERRY_PICK_HEAD`,
-   `REVERT_HEAD`, and `BISECT_START`). If any such state is detected, show an
+7. **Operation-in-progress protection**: before recommending a workflow command
+   that an operation in progress could make fail or interfere with, determine
+   whether an operation is in progress by checking unmerged index entries and
+   applicable Git paths returned by `git rev-parse --git-path` (`MERGE_HEAD`,
+   `rebase-merge`, `rebase-apply`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, and
+   `BISECT_START`). If any such state is detected, show an
    appropriate proactive `error/blocked` hint for an unresolved or stopped
    operation, and suppress workflow suggestions whose commands would fail or
    interfere until the operation is resolved. In particular, `merge-conflicts`
@@ -658,11 +659,13 @@ The Conditions of the hints below assume this check and do not repeat it.
   least one commit: `git rev-parse --verify --quiet HEAD` must exit 0, because
   pushing a branch with no commits fails with `src refspec <branch> does not
   match any`. Check for an upstream using `git rev-parse --abbrev-ref
-  --symbolic-full-name "@{upstream}"`. Confirm that the `origin` remote exists
-  using `git remote`. Suggest configuring an upstream only when the current
-  branch has no resolvable upstream and `origin` exists. Do not display the hint
-  in detached HEAD state, on a branch with no commits, or when a valid upstream
-  is configured.
+  --symbolic-full-name "@{upstream}"`, which exits 128 when the branch has no
+  resolvable upstream, whether none is configured or its remote-tracking
+  branch does not exist. Confirm that the `origin` remote exists using `git
+  remote`. Suggest configuring an upstream only when the current branch has no
+  resolvable upstream and `origin` exists. Do not display the hint in detached
+  HEAD state, on a branch with no commits, or when a valid upstream is
+  configured.
 
 * Test case:
 
@@ -2319,10 +2322,11 @@ solely to check its hints.
   requiring complete lines to match.
 
   Do not count authentication failures, network failures, missing upstream
-  branches, dirty working trees, or unresolved conflicts. Do not count a failed
-  `git pull --rebase`. Do not recommend rebasing while a merge or rebase is in
-  progress. An upstream branch is required before counting an integration
-  failure toward a rebase recommendation.
+  branches, or dirty working trees. Do not count any failure while the index
+  has unresolved entries (`git diff --name-only --diff-filter=U` returns
+  paths). Do not count a failed `git pull --rebase`. Do not recommend rebasing
+  while a merge or rebase is in progress. An upstream branch is required before
+  counting an integration failure toward a rebase recommendation.
 
   Skip failure counting outside a working tree, in detached HEAD, or when the
   executed Git command uses repository-redirection options such as `-C`,
@@ -2534,14 +2538,14 @@ without `--ids-only`. Report each failed inspection command once, however many
 hints and other parts of inspection, such as the integration-failure counter,
 use it; when it exited with an unexpected code, name the command and that code
 in the message. After an unexpected inspection failure, still print the output
-that does not depend on the failed commands, and `No hints.` when no hint
-triggers. All output of plain `git-hints` depends on the commands of the
-repository context line (Hint structure, item 1): when one of them fails,
-report it, stop inspecting, and print nothing on standard output, with or
-without `--ids-only`. When Git cannot be launched, report it once, stop, and
-print nothing on standard output. For `git-hints explain`, this applies to the
-supplied command; an inspection command that cannot be launched after it ran is
-an unexpected inspection failure.
+that does not depend on the failed commands, and, in normal output, `No
+hints.` when no hint triggers. All output of plain `git-hints` depends on the
+commands of the repository context line (Hint structure, item 1): when one of
+them fails, report it, stop inspecting, and print nothing on standard output,
+with or without `--ids-only`. When Git cannot be launched, report it once,
+stop, and print nothing on standard output. For `git-hints explain`, this
+applies to the supplied command; an inspection command that cannot be launched
+after it ran is an unexpected inspection failure.
 
 Decode Git output as UTF-8 (`encoding="utf-8", errors="replace"`), not with the
 locale default. When a path list is parsed, use `-z` or `-c
