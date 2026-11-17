@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from git_test_tools import (
     all_blocks,
+    blocks,
     collapse,
     commit_file,
     config_user,
@@ -167,6 +168,81 @@ def test_inspection_environment(
     git(repo, "commit", "-m", "Add bar.")
     git(repo, "tag", "main")
     assert "push-ahead" in hint_ids(repo)
+
+
+def reported_failures(stderr: str) -> list[str]:
+    return [
+        line for line in stderr.splitlines() if line.startswith("git-hints: ")
+    ]
+
+
+def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
+    repo, empty = make_temps(tmp_path_factory, 2)
+    config_user("user1", "user1@example.com")
+    make_repo(
+        repo,
+        [
+            ["git", "init", "-b", "main"],
+            write(repo / "foo.txt", "base"),
+            ["git", "add", "foo.txt"],
+            ["git", "commit", "-m", "Add foo."],
+            ["git", "remote", "add", "origin", str(empty)],
+            write(repo / "foo.txt", "base\nmore"),
+        ],
+    )
+    ids = hint_ids(repo)
+    assert "no-upstream-branch" in ids
+    assert "unstaged-changes" in ids
+    # An unreadable index makes every Git command that reads it exit with 128.
+    (index,) = git_paths(repo, "index")
+    index.write_bytes(b"garbage")
+
+    result = run_hints(repo, "--all")
+    assert result.returncode == 1
+    assert result.stdout.splitlines()[0] == "Branch: main"
+    found = blocks(result.stdout)
+    assert "no-upstream-branch" in found
+    assert "unstaged-changes" not in found
+    assert reported_failures(result.stderr)
+
+    result = run_hints(repo, "--all", "--ids-only")
+    assert result.returncode == 1
+    ids = result.stdout.splitlines()
+    assert "no-upstream-branch" in ids
+    assert "unstaged-changes" not in ids
+    assert not any(line.startswith("Branch:") for line in ids)
+    assert reported_failures(result.stderr)
+
+    # Git's own message comes first, then the failed `merge-conflicts`
+    # inspection.
+    for options, stdout_line in (
+        ([], "Git exited with code 128."),
+        (["--ids-only"], None),
+    ):
+        result = run_hints(
+            repo, *options, "explain", "--", "git", "status", "--short"
+        )
+        assert result.returncode == 1
+        if stdout_line is None:
+            assert result.stdout == ""
+        else:
+            assert stdout_line in result.stdout.splitlines()
+        lines = result.stderr.splitlines()
+        fatal = [i for i, line in enumerate(lines) if line.startswith("fatal:")]
+        failed = [
+            i for i, line in enumerate(lines) if line.startswith("git-hints: ")
+        ]
+        assert fatal and failed
+        assert fatal[0] < failed[0]
+
+    # With no `git` executable on `PATH`, Git cannot be launched.
+    env = dict(os.environ, PATH=str(empty))
+    for args in (["--all"], ["explain", "--", "git", "status"]):
+        result = run_hints(repo, *args, env=env)
+        assert result.returncode == 1
+        assert result.stdout == ""
+        assert result.stderr.splitlines() == reported_failures(result.stderr)
+        assert len(result.stderr.splitlines()) == 1
 
 
 # `detached-head`
