@@ -2571,15 +2571,21 @@ its title:
    `git-push` from `urls-remotes.adoc`, has the ID `UPSTREAM-BRANCHES`. An
    inline anchor `[[ID]]` inside the title, as in `REMOTES[[REMOTES]]`, adds
    the ID `ID`, and the section keeps the ID that rule 2 derives from the title
-   without the anchor, here `_remotes`.
-2. Otherwise the title is lowercased; every character that is not a letter,
-   digit, underscore, space, hyphen, or period is deleted; each run of spaces,
-   underscores, hyphens, and periods is replaced by one `_`, with no trailing
-   `_`; and `_` is prefixed. For example, NOTE ABOUT FAST-FORWARDS becomes
-   `_note_about_fast_forwards`, and REBASE VS. PULL/MERGE becomes
-   `_rebase_vs_pullmerge`. If the ID already occurs earlier on the page, `_2`,
-   `_3`, and so on is appended; the second CONFIGURATION section of `git-tag`
-   has the ID `_configuration_2`.
+   without the anchor, here `_remotes`. An anchor line applies to the next
+   title even when blank lines, comments, or attribute lines such as
+   `[appendix]` come between them.
+2. Otherwise the title is first rendered as Asciidoctor renders it: an
+   attribute reference such as `{caret}` is replaced by its value, and ` -- `
+   becomes an em dash, which is then deleted together with the spaces around
+   it. The rendered title is lowercased; every character that is not a letter,
+   digit, underscore, space, hyphen, or period is deleted; `_` is prefixed; and
+   each run of spaces, underscores, hyphens, and periods is replaced by one
+   `_`, with no trailing `_`. For example, NOTE ABOUT FAST-FORWARDS becomes
+   `_note_about_fast_forwards`, REBASE VS. PULL/MERGE becomes
+   `_rebase_vs_pullmerge`, and INTERNALS -- SPARSE CHECKOUT becomes
+   `_internalssparse_checkout`. If the ID already occurs earlier on the page,
+   `_2`, `_3`, and so on is appended; the second CONFIGURATION section of
+   `git-tag` has the ID `_configuration_2`.
 
 IDs of single options, such as `Documentation/git-config.txt-username`, are
 produced by the website's own build, not by the `.adoc` source, so they cannot
@@ -2666,17 +2672,19 @@ not in the checkout, it says so and exits 2 before checking anything.
    whose file name is relative to the directory of the including file. An
    include that names an attribute, such as `{build_dir}`, or a file that does
    not exist is printed as `unresolved <ref> <file>` and skipped. Section titles
-   are lines that start with `==` to `======` and a space, and non-empty lines
-   followed by an underline of `-`, `~`, `^`, or `+` characters whose length
-   differs from the title's by at most one. The document title on the first
-   line, underlined with `=`, is not a section, and no underline is a block
-   delimiter. A delimited block starts with a line of four or more `-`, `.`,
-   `=`, `*`, `+`, or `/` characters, or with `|===`, and ends at the next line
-   identical to the opening one; it contains no titles, and its delimiter lines
-   are not underlines. Titles inside `ifdef::` and `ifndef::` blocks are
-   collected whatever the condition, which `--site` confirms. The script
-   collects the explicit anchors `[[ID]]` and, for each title without an
-   explicit anchor line before it, the ID derived by the rules above.
+   are lines that contain a letter, digit, or underscore and either start with
+   `==` to `======` and a space or are followed by an underline of `-`, `~`,
+   `^`, or `+` characters whose length differs from the title's by at most one;
+   the letter rule keeps a list continuation `+` above an open block's `--` from
+   counting as a title. The document title on the first line, underlined with
+   `=`, is not a section, and no underline is a block delimiter. A delimited
+   block starts with a line of four or more `-`, `.`, `=`, `*`, `+`, or `/`
+   characters, or with `|===`, and ends at the next line identical to the
+   opening one; it contains no titles, and its delimiter lines are not
+   underlines. Titles inside `ifdef::` and `ifndef::` blocks are collected
+   whatever the condition, which `--site` confirms. The script collects the
+   explicit anchors `[[ID]]` and, for each title without an explicit anchor line
+   before it, the ID derived by the rules above.
 2. It prints `ok <url>` when the ID exists at both refs, `missing <url>` when it
    does not exist at `<tag>`, and `moves <url>` when it exists at `<tag>` but
    not at `origin/master`, which finds an anchor that will move before the
