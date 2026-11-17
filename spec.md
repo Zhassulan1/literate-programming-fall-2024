@@ -3019,11 +3019,11 @@ specification it concerns, and the code follows the specification:
 * Language and libraries requires `GIT_OPTIONAL_LOCKS=0` and `LC_ALL=C` for
   inspection commands, reads ref names without `--short`, and defines how
   unexpected failures are reported; Testing has the test cases for all three.
-
-The subsection below, Implementation Strategy, is being merged into the parts
-of the specification it concerns in the same way. Until then, a decision
-recorded in it applies where it differs from those parts; its descriptions of
-the existing code do not limit the changes listed above.
+* Behavior that the code already had is specified in the sections it belongs
+  to: the `bisect-in-progress` hint, the priority class and test case of
+  `commit-identity`, `git init` in `not-a-repo`, `No hints.` for `explain`, the
+  suppression of `behind` and `diverged` during a paused operation or while
+  conflicts remain, and of `tracked-but-ignored` while conflicts remain.
 
 All changes follow these rules:
 
@@ -3039,30 +3039,3 @@ All changes follow these rules:
 * The text of this specification is the single source of truth. When the
   specification and the code disagree, the specification is changed first to
   say which behavior is wanted, and the code follows it.
-
-Implementation Strategy
------------------------
-
-### Hint Detection and Prioritization
-
-Each hint is implemented as an independent condition evaluator using the
-repository state: a check function that returns a `Hint` or `None`. Proactive
-checks are registered in `CHECKS` in `proactive.py`, except `not-a-repo`, which
-runs before inspection. Reactive checks are registered in `REACTIVE_CHECKS` in
-`reactive.py`, plus `rebase-after-repeated-integration-failures`, which
-`explain` appends after updating the integration-failure counter.
-`collect_hints` runs the checks in `CHECKS` concurrently, one
-`ThreadPoolExecutor` worker per check, since they mostly wait for Git. All
-checks share one `Repo`, which memoizes each command's result by its arguments,
-so a command needed by several checks runs once. A command that fails
-unexpectedly raises `InspectionError`, which suppresses every check using it
-and is reported once.
-
-Triggered hints are assigned the priority classes defined in the specification
-and sorted by `sort_hints` according to the required precedence rules, whose
-ID list is `PRECEDENCE` in `hint.py`; the order of `CHECKS` does not affect
-output. Hint IDs remain stable.
-
-Operation-in-progress suppression is applied inside the checks, which consult
-`Repo.operations` and `Repo.unmerged_paths`. `show_hints` applies the
-three-hint limit (`HINT_LIMIT`) to the sorted list; `explain` never applies it.
