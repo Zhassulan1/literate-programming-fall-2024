@@ -2689,11 +2689,11 @@ explain` must ignore the interrupt and quit signals, such as `SIGINT` from
 Ctrl+C, which the terminal also sends to Git, so that Git alone decides how
 the command ends and its exit code and captured standard error are still
 reported. Git must keep the default handling of these signals: a signal that
-is ignored when Git is launched stays ignored in Git, so ignore them only
-after launching it, or catch them with a handler that does nothing.
+is ignored when Git is launched stays ignored in Git, so catch them, before
+launching it, with a handler that does nothing.
 
 Report an unexpected inspection failure and a failure to launch Git on
-standard error as a message starting with `git-hints: `, and exit with code 1;
+standard error as one line starting with `git-hints: `, and exit with code 1;
 for `git-hints explain`, these messages follow Git's captured standard error,
 and this code replaces Git's exit code. This applies to both modes, with and
 without `--ids-only`. Report each failed inspection command once, however many
@@ -3053,14 +3053,14 @@ Test case for the failure reporting of Language and libraries, in
    lines, in any order.
 2. In the same repository, run `git-hints explain -- git status --short`. Git
    itself exits with code 128, and the `merge-conflicts` check then fails to
-   inspect the index with `git diff --name-only --diff-filter=U -z`. Verify
-   that `git-hints` exits with code 1, that its standard output contains the
-   line `Git exited with code 128.`, and that its standard error contains a
-   line starting with `fatal:`, which is Git's own message, followed later by a
-   line starting with `git-hints: ` that contains `--diff-filter=U` and `128`.
-   Run `git-hints --ids-only explain -- git status --short` and verify that it
-   exits with code 1, that its standard output is empty, and that its standard
-   error contains both lines again.
+   inspect the index with `git diff --name-only --diff-filter=U -z`. Verify that
+   `git-hints` exits with code 1, that its standard output contains the lines
+   `Git exited with code 128.` and `No hints.`, and that its standard error
+   contains a line starting with `fatal:`, which is Git's own message, followed
+   later by a line starting with `git-hints: ` that contains `--diff-filter=U`
+   and `128`. Run `git-hints --ids-only explain -- git status --short` and
+   verify that it exits with code 1, that its standard output is empty, and that
+   its standard error contains both lines again.
 3. Create an empty directory. In the same repository, run `git-hints --all` and
    then `git-hints explain -- git status`, each with `PATH` set to that
    directory, so that Git cannot be launched. Run `git-hints` as

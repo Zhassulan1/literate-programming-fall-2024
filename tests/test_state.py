@@ -258,18 +258,18 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
 
     # Git's own message comes first, then the failed `merge-conflicts`
     # inspection.
-    for options, stdout_line in (
-        ([], "Git exited with code 128."),
-        (["--ids-only"], None),
+    for options, stdout_lines in (
+        ([], ["Git exited with code 128.", "No hints."]),
+        (["--ids-only"], []),
     ):
         result = run_hints(
             repo, *options, "explain", "--", "git", "status", "--short"
         )
         assert result.returncode == 1
-        if stdout_line is None:
+        if not stdout_lines:
             assert result.stdout == ""
-        else:
-            assert stdout_line in result.stdout.splitlines()
+        for line in stdout_lines:
+            assert line in result.stdout.splitlines()
         lines = result.stderr.splitlines()
         fatal = [i for i, line in enumerate(lines) if line.startswith("fatal:")]
         failed = [
