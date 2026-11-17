@@ -1230,7 +1230,7 @@ def unpushed_branches(ctx: Context) -> Hint | None:
 # that fetched nothing, leaves it empty. The hint is hidden as a whole during
 # an operation, a `git am` session, or a bisect, and while conflicts remain,
 # like `stash-entries`.
-# <fragment id="cc-75esxee47z" following="5"></fragment>
+# <fragment id="cc-75esxee47z" following="7"></fragment>
 STALE_FETCH_SECONDS = 24 * 60 * 60
 
 
@@ -1266,6 +1266,11 @@ def stale_fetch(ctx: Context) -> Hint | None:
     lines = result.stdout.removesuffix("\n").split("\n")
     if len(lines) != 2:
         raise InspectionError(result, "unexpected `git rev-parse` output")
+
+    # Use the newest of the files that exist. `file_status` skips a missing
+    # file, but any other error examining either one, such as a denied
+    # permission, is an unexpected inspection failure naming the file, which
+    # suppresses this hint while the others are still shown.
     newest: os.stat_result | None = None
     for path in (Path(lines[0]), Path(lines[1]) / "FETCH_HEAD"):
         status = file_status(path)
