@@ -1890,18 +1890,16 @@ The Conditions of the hints below assume this check and do not repeat it.
      worktree both are the same file. A fetch made in another linked worktree
      is not seen.
   3. Skip the hint when neither file exists. Otherwise use the existing file
-     with the newest modification time. Only `git fetch`, including the fetch
-     that `git pull` runs, writes `FETCH_HEAD`; `git clone` and `git push` do
-     not, so a push does not count as a fetch.
+     with the newest modification time. `FETCH_HEAD` records fetch attempts;
+     remote-tracking ref updates made without a fetch do not count.
   4. If that file is empty, the hint applies with `the last fetch failed or
      fetched nothing`: a fetch that cannot reach its remote and a fetch that
      fetches nothing both leave `FETCH_HEAD` empty. Otherwise the hint applies
      when the file's modification time is more than 24 hours before the current
      time. A time in the future counts as recent.
-  5. Known limitations: a repository that was cloned and never fetched gets no
-     hint, because `git clone` writes no `FETCH_HEAD`; and a fetch of any
-     remote counts, so the hint stays silent after a fetch of one remote while
-     another remote's branches are old.
+  5. Known limitations: a repository with no recorded fetch gets no hint, and a
+     fetch of any remote counts, so the hint stays silent after a fetch of one
+     remote while another remote's branches are old.
 
 * Related output: `behind`, `diverged`, `push-ahead`, and `unpushed-branches`
   keep their "as of last fetch" label; this hint says how old that fetch is.
@@ -1957,6 +1955,10 @@ explain`. Use the shared CLI execution and output rules rather than redefining
 them here. Evaluate repository-state conditions only when inspection applies to
 the repository targeted by the command, following the redirection rules under
 Language and libraries.
+
+Only commands executed through `explain` update the integration-failure state
+described by `rebase-after-repeated-integration-failures`; proactive inspection
+does not update it.
 
 Diagnostic-based recognition supports English Git messages; display unrecognized
 diagnostics on stderr without guessing a matching hint. In the tests below,
@@ -2820,8 +2822,8 @@ specification it concerns, and the code follows the specification:
 The subsection below, Implementation Strategy, is being merged into the parts
 of the specification it concerns in the same way. Until then, a decision
 recorded in it applies where it differs from those parts; its descriptions of
-the existing code, such as its module map and test count, do not limit the
-changes listed above.
+the existing code, such as its test count, do not limit the changes listed
+above.
 
 All changes follow these rules:
 
@@ -2841,36 +2843,6 @@ All changes follow these rules:
 Implementation Strategy
 -----------------------
 
-### Architecture
-
-The application uses a modular architecture consisting of a Typer CLI, Git
-command executor, repository inspector, hint detection engine, and output
-renderer. These components are separated to allow independent testing, and
-they map to the modules of the `git_hints` package as follows:
-
-* `cli.py`: the Typer CLI, which calls `proactive.show_hints` or
-  `reactive.explain`.
-* `git.py`: the Git command executor (`run_git`, `GitResult`) and the
-  repository inspector (`Repo`).
-* `hint.py`: the hint model (`Hint`, `Priority`, `Safety`, `Command`),
-  ordering (`PRECEDENCE`, `sort_hints`), and the renderer (`render_block`).
-* `proactive.py`: the hint detection engine for repository state (`CHECKS`,
-  `collect_hints`), the `--fetch` step, and proactive output (`show_hints`).
-* `reactive.py`: `explain`, its checks (`REACTIVE_CHECKS`), and the
-  integration-failure counter.
-
-### Git Command Execution
-
-Git commands are executed using Python's `subprocess` with `shell=False` and
-`check=False`. Arguments are passed as lists to avoid shell interpretation.
-
-The executor distinguishes expected Git exit codes from unexpected failures.
-Git output is decoded as UTF-8 (`encoding="utf-8", errors="replace"`), as
-required in Language and libraries. Commands whose path lists are parsed use
-`-z` (for example, `git diff --name-only -z`), and their output is split on NUL
-characters, so names containing spaces, newlines, or non-ASCII characters stay
-intact.
-
 ### Repository Inspection
 
 The repository inspector collects branch information, staged and unstaged
@@ -2884,7 +2856,7 @@ operation-state paths.
 
 Inspection subprocesses, but not the command run by `explain`, use
 `GIT_OPTIONAL_LOCKS=0`, so that `git status` does not take the index lock.
-Inspection never changes tracked content, the working tree, refs, or the stash.
+Inspection must not change tracked content, the working tree, refs, or the stash.
 `git diff` may still refresh the cached stat data in the index, because
 `diff.autoRefreshIndex` stays enabled: disabling it would make files whose stat
 data alone changed look modified. An explicit `--fetch` updates
@@ -2915,29 +2887,6 @@ output. Hint IDs remain stable.
 Operation-in-progress suppression is applied inside the checks, which consult
 `Repo.operations` and `Repo.unmerged_paths`. `show_hints` applies the
 three-hint limit (`HINT_LIMIT`) to the sorted list; `explain` never applies it.
-
-### Reactive Error Handling
-
-The `explain` command executes the supplied Git command once and inherits
-standard input. Git's standard output goes directly to the terminal in normal
-output and to `subprocess.DEVNULL` under `--ids-only`. Standard error is
-captured, used for reactive hint matching, and printed to standard error after
-Git exits, as required in Language and libraries.
-
-The implementation returns Git's original exit code, unless Git cannot be
-launched or an unexpected inspection error occurs. In normal output, it prints
-`Git exited with code <n>.`, then all triggered reactive hints on a nonzero exit
-or `No error detected.` on success; under `--ids-only`, it prints only the
-triggered hint IDs. Only `explain` updates the integration-failure counter
-stored under `git rev-parse --git-path git-hints`, in the file
-`git-hints/integration-failures.json` (`FAILURE_COUNTS_PATH`).
-Repository-dependent hints are skipped when the global options before the Git
-subcommand include a repository-redirection option such as `-C`, `--git-dir`,
-or `--work-tree`.
-
-Tests verify that Git's captured standard error appears on standard error,
-that Git's standard output is hidden under `--ids-only`, and that `git-hints`
-returns Git's exit code.
 
 ### Output Rendering
 
