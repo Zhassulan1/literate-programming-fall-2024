@@ -905,11 +905,13 @@ strategy introduction.
 | 6     | 11       | Ref names that inspection compares or puts into commands are read without `--short`; the anchor rules cover HTML entities and trailing title anchors; all four moving anchors are listed; an empty root commit is a known limitation of `unpushed-branches`; 4 findings rejected because the specification already states the decision or the test checks what it requires |
 | 7     | 10       | A branch with no upstream is skipped when the `origin` branch of the same name has diverged from it; the stale-fetch test case checks that a failed fetch empties `FETCH_HEAD`; the documentation-table test also checks that each entry's kind fits its URL and that no URL repeats; 4 findings rejected because they contradict decisions the specification records |
 | 8     | 9        | `no-upstream-branch` stays silent when an upstream is configured but does not resolve; inspection runs `git diff` with `diff.autoRefreshIndex=true`; file errors on `FETCH_HEAD` are unexpected inspection failures, with a test step; the stash-apply result and the `git am` suppression are stated; 4 findings rejected because the specification records the decision or the step checks what it claims |
+| 9     | 7        | `no-upstream-branch` skips a push that would be rejected; `detached-head` and `changes-on-default-branch` are hidden while `git switch` would fail; the partial `git stash apply` outcome and the shell quoting policy are stated; the Development strategy list records these changes |
+| 10    | 8        | None; this was the confirming round, 2 findings rejected as contradicting recorded decisions, and the others recorded below without changes |
 
 #### Last specification review
 
 Prompting Claude Opus 5.5 in Claude Code with the following prompt produced the
-round 8 output below; strikethrough indicates findings that I deemed incorrect
+round 10 output below; strikethrough indicates findings that I deemed incorrect
 or irrelevant. Local paths are replaced by `<repo>` (the repository),
 `<git-source>` (the Git source clone) and `<scratch>` (a scratch directory).
 
@@ -917,163 +919,148 @@ or irrelevant. Local paths are replaced by `<repo>` (the repository),
 Review only these parts of spec.md in <repo>: the hint sections "Keep track of stash entries?", "Push your other local branches?", and "Fetch to see the newest remote commits?"; the precedence list in Hint structure, item 5; the "Plain `git-hints`" bullet in "Language and libraries"; the "Documentation links" section; the paragraph in "Testing" that begins "Inspection must keep working"; and the introduction of "Development strategy", up to the "Implementation Strategy" heading. Check for technical inaccuracies, contradictions with the rest of spec.md or with the code in src/git_hints/, missing decisions, and ambiguous or untestable statements. Avoid stylistic suggestions. A clone of the Git source is at <git-source> (tag v2.56.0), and you may create scratch repositories under <scratch>/spec-review to check Git's behavior. Do not modify any file in the repository. Report the findings as a numbered list, each with the location, the problem, and why it matters, followed by the total number of findings.
 ```
 
-Review of spec.md on branch git-tool (working tree at 01d58d7). I checked each claim against src/git_hints/, the Git source (v2.56.0, v2.34.0 and origin/master), and scratch repositories under `<scratch>/spec-review/` using Git 2.56.0. I ran tests/test_docs.py, test_unpushed_branches, test_stash_entries and test_inspection_environment without writing caches: 8 passed, and the repository is unchanged.
+Scope notes: spec.md has no "Implementation Strategy" heading any more (commit 517fcb5 removed it), so I reviewed the whole "Development strategy" section, lines 3177-3222. For Git source I used `git show v2.56.0:...`, because the clone's HEAD is v2.56.0-398. The installed git is 2.56.0. I tested behavior in repositories under `<scratch>/spec-review`. I modified no repository file.
 
-Scope note: spec.md no longer has an "Implementation Strategy" heading (commit 01d58d7 removed it). For the Development strategy item I therefore reviewed the whole section, lines 3005–3041.
+The following were checked and hold, so they are not listed below:
+- The `git log --branches --not --remotes --simplify-by-decoration ... %D` claims: HEAD and tags are excluded, `log.excludeDecoration` is overridden, an empty-tree root is hidden, other roots give empty lines, and the pre-2.35 `--decorate` note is right (commits 14b9c2b3e3 and be73860793).
+- The `for-each-ref` field layout, the `[gone]` case and the case where an upstream is set but its remote-tracking branch is missing.
+- The ordering in the push-command quoting test.
+- `FETCH_HEAD` is truncated before Git contacts the remote (2.34 and 2.56), so a failed fetch or one that fetches nothing leaves it empty. The path from `rev-parse --git-path FETCH_HEAD --git-common-dir` is right in a linked worktree.
+- `refresh_index_quietly` takes the index lock whatever `GIT_OPTIONAL_LOCKS` says, and `git commit -a` holds `index.lock` while its editor is open.
+- The anchor-derivation examples, the anchors that move on master (`DETACHED_HEAD`, `EXAMPLES`, `gitmergeconflicts#markers` and `#resolve`), and the `PRECEDENCE` list in hint.py, which matches item 5.
 
-Findings, most severe first:
+Findings:
 
-<del>1\. Location: "Push your other local branches?", Command field and Conditions 5.2. Problem: when a branch's upstream is on a remote and is ahead, the command always pushes to that upstream's remote and branch name. It ignores whether that is where the branch should go. - The common case: `git switch -c topic origin/main` sets the upstream automatically (branch.autoSetupMerge). Verified: the hint then suggests `git push origin topic:main`, labeled safe. That publishes topic's commits onto the remote's main. Git's default push.default=simple refuses a plain `git push` here for this reason ("The upstream branch of your current branch does not match the name of your current branch"). - A fork workflow (remote.pushDefault or branch.<name>.pushRemote set) has the same problem. Verified: the hint suggests `git push upstream topic:main`, pushing to the shared repository instead of the user's fork. - Nothing in the spec decides whether to skip branches whose upstream has a different name, or to honor the push remote or %(push). Why it matters: a learner following a "safe" hint can push unreviewed work onto a shared main. push-ahead does the same thing (its test step 12 expects `git push origin HEAD:main`). If this is deliberate, the spec should say so and explain why; otherwise both hints need the decision.</del>
+1. "Keep track of stash entries?", Command field, `git stash apply 0` result (spec.md lines 1781-1786; the same text is in proactive.py lines 1131-1138).
+   - Problem: two of the claimed outcomes are wrong on Git 2.56.0. In builtin/stash.c (`goto restore_untracked`), when an untracked file the entry saved already exists, Git applies the tracked changes and also restores every other untracked file. It skips only the existing one ("u1.txt already exists, no checkout"). The spec says it applies "only the tracked changes". When Git refuses the tracked changes ("Your local changes ... would be overwritten ... Aborting"), it still restores the untracked files. I reproduced both: u2.txt was restored in the first case, and u1.txt and u2.txt in the second.
+   - On Git 2.34, the supported minimum, behavior differs again. Before commit 71cade5a0b (v2.35.0), Git returns early on a conflict or refusal and restores no untracked files.
+   - Why it matters: the Result field promises how Git behaves. A user told that Git "refused" will not expect new untracked files. A retry then fails on the files that were already restored. The test only checks the phrase `could not restore the untracked files`, so it cannot catch this.
 
-2. Location: "Push your other local branches?", Conditions 5.1 and Related output, compared with "Configure an upstream branch?" (no-upstream-branch), Conditions.
-   Problem: the two sections treat the same state in opposite ways. The state is a branch whose configured upstream maps to no remote-tracking branch, as in a single-branch clone. Condition 5.1 skips such a branch, because a push cannot create that remote-tracking branch. The Related output says that for the current branch, no-upstream-branch applies instead. Verified in a single-branch clone on branch `nf`, after `git push -u origin nf`:
-   - `git rev-parse --abbrev-ref --symbolic-full-name @{upstream}` exits 128 ("not stored as a remote-tracking branch").
-   - no-upstream-branch says "no upstream branch configured" and suggests `git push -u origin nf`.
-   - Running that command changes nothing, and the hint stays forever.
-   Why it matters: the spec contradicts itself and gives a false Git-stage claim with a command that never clears the hint. Test step 12 checks this state only from `main`, so the contradiction is untested.
+2. "Development strategy", the list of changes (lines 3185-3207).
+   - Problem 1: the list leaves out a new behavior. Since f7bb1a1/aa463a5 (spec) and 8246bee (code), `git-hints explain` ignores SIGINT and SIGQUIT while Git runs, and reports a Git process ended by a signal as 128+N. It has its own test, failure-reporting step 6. The code at df09bce, which the section treats as the existing implementation, has neither. It is not an "unexpected failure", so the bullet about failure reporting does not cover it.
+   - Problem 2: the list misclassifies `GIT_OPTIONAL_LOCKS=0` and `LC_ALL=C`. The df09bce code already set both (git.py lines 80-88), yet they are listed as changes instead of under "Behavior that the code already had". The same applies to the basic `git-hints:` exit-1 reporting.
+   - Why it matters: this section is the team's record of what changed. It also backs the rule that every behavior change comes with a test, which cannot be checked against an inaccurate list.
 
-3. Location: Language and libraries, the "Plain `git-hints`" bullet, the sentence "`diff.autoRefreshIndex`, which stays enabled …".
-   Problem: nothing enforces this. If the user's config sets diff.autoRefreshIndex=false, inspection obeys it. Because GIT_OPTIONAL_LOCKS=0 also stops `git status` from writing the refreshed index, nothing in inspection ever clears stat-only changes.
-   - Verified: `git -c diff.autoRefreshIndex=false diff --name-only` lists a file whose only change is its mtime. many-changed-files uses `git diff --name-only`.
-   - On Git 2.34–2.45, `git diff --quiet` (unstaged-changes) also reports such a file. Git only compares contents for an exit-status diff from 2.46 on (diff.c, `allow_external && exit_with_status`).
-   - The same Git change makes the stated rationale untrue for `git diff --quiet` on Git 2.46 and later.
-   Why it matters: this produces false unstaged-changes or many-changed-files hints. The spec needs a decision: force it with `-c diff.autoRefreshIndex=true`, or accept and document it.
+3. "Development strategy", bullet on `detached-head` and `changes-on-default-branch` (lines 3196-3201).
+   - Problem: the reason "because their `git switch` commands would fail" is wrong for one case: unmerged paths with no operation in progress, for example after a conflicting `git stash pop`. There `git switch -c <name>`, the main command of `detached-head`, succeeds. Only `git switch <branch>` fails ("you need to resolve your current index first"). I reproduced this in the `um` scratch repository.
+   - The `detached-head` section's own wording (step 4) is accurate. But it hides the whole hint, including its `data-loss risk` warning, for a reason that applies only to the optional second command.
+   - Why it matters: the stated reason does not justify the decision. Either suppress only the `git switch <branch>` line while unmerged paths exist, or give the real reason.
 
-<del>4\. Location: Documentation links, Maintenance script step 1 ("Titles inside `ifdef::` and `ifndef::` blocks are collected whatever the condition, which `--site` confirms"), together with "Each section anchor is verified against the `Documentation/*.adoc` files". Problem: the offline check accepts anchors the page never renders. - rev-list-options.adoc puts "Commit Ordering", "Object Traversal" and "Commit Formatting" under `ifndef::git-shortlog[]`, and it is included into git-shortlog. - Running the script's own `Source.ids` gives `_commit_ordering` for git-shortlog at v2.56.0. - `--site` is optional for section anchors, so a `version` record can certify a missing anchor. The same issue can also shift the `_2`/`_3` suffixes. - The condition is decidable offline: each page sets its own attribute, such as `:git-shortlog: 1` and `:git-log: 1`. Why it matters: "verified" section anchors can be wrong. No current table entry is affected.</del>
+4. Testing, the step beginning "Inspection must keep working" (lines 3070-3078).
+   - Problem: the setup says moving the modification time makes "`git diff` try to refresh the index", but nothing checks this. Other steps state such things as checked preconditions. Step 4, for example, checks that `diff.autoRefreshIndex=false` lists the files. Nothing checks either that the stat-only file stays unreported while the refresh cannot be saved (`unstaged-changes` absent).
+   - Why it matters: the step passes even if the setup stops triggering a refresh. It only shows that nothing crashed, not that the refresh-under-lock path ran or was harmless.
 
-5. Location: "Keep track of stash entries?", Command field ("afterward, `git status` lists the restored changes").
-   Problem: this is not always true. Verified: for an entry made with `git stash push -a` that holds only ignored files, `git stash apply 0` restores `x.log` but `git status --short` prints nothing. It is also false when the entry's changes are already in the working tree.
-   Why it matters: Hint structure items 2 and 8 make the Result a stated expected outcome, and this one fails for valid stashes.
+5. "Keep track of stash entries?", Command field, `Warning: git stash pop 0` (lines 1789-1791).
+   - Problem: Hint structure item 6 requires a `Warning:` command to "instruct the user to back up first". The pop text only says to view the changes with `git stash show`. Viewing is not a backup. The drop text at least asks the user to confirm the changes are applied or committed.
+   - Why it matters: this contradicts a rule the spec sets for every `Warning:` command.
 
-6. Location: "Fetch to see the newest remote commits?", Conditions 3 ("An error other than a missing file … is an unexpected inspection failure, which Language and libraries describes").
-   Problem: Language and libraries defines that reporting per failed Git command: once for each failed command, a `git-hints: ` message, and suppressing the hints that depend on the failed command. Here no Git command is involved. The spec does not say what the message contains, how often it is reported, or that only stale-fetch is suppressed. No test step covers it, despite the rule that every behavior change comes with a test. The code's InspectionError also requires a GitResult.
-   Why it matters: this behavior is underspecified and can't be tested as written.
+<del>6\. Hint structure, item 5, precedence list (lines 214-221). - Problem: the stated criterion is "specifically important state hints ahead of routine suggestions". `stash-entries` is a reminder, and its own Related output says so. Its place in the list only puts it ahead of `stale-fetch`, another reminder, since `bisect-in-progress` and `not-a-repo` never appear together with it. `unpushed-branches` and `stale-fetch` are left out without a reason. - Why it matters: "Future IDs that require special precedence must be added" has no rule a maintainer can apply. It matters because the order decides what the three-hint limit cuts off.</del>
 
-<del>7\. Location: Testing, inspection-environment test, step 2 ("Inspection must keep working while another Git command holds the index lock …"). Problem: the step cannot fail for any plausible implementation. - Verified: with an empty index.lock in place and no GIT_OPTIONAL_LOCKS, `git status --porcelain=v2 --branch`, `git diff --quiet` and `git diff --name-only --diff-filter=U` all exit 0 with no stderr. A refresh that cannot get the lock is skipped silently. - "Verify that the lock file still exists and is empty" also cannot fail, because Git never removes a lock it did not create. - The step only guards against inspection using a lock-requiring command. The real risk, which the bullet admits, is `git diff`'s refresh taking the lock and breaking a concurrent user command; that is neither tested nor bounded. Why it matters: readers may think lock behavior is covered. GIT_OPTIONAL_LOCKS is actually checked only by step 1.</del>
+<del>7\. Documentation links, Maintenance script, items 2 and 4 (lines 2933-2950). - Problem: `moves <url>` is printed both for an entry with a recorded replacement (expected) and for one without (an unrecorded move that needs action). Both exit 0, and the spec does not say whether the second case should fail or be marked differently. - Why it matters: the section asks that each expected replacement be recorded, but the script's exit code does not enforce it. A newly found move can pass unnoticed.</del>
 
-8. Location: Development strategy introduction, 4th bullet ("the suppression of `behind` and `diverged` during a paused operation or while conflicts remain").
-   Problem: the claim that the code's existing behavior is now specified is incomplete.
-   - The code suppresses both hints when `Operations.combining` is true, which includes a `git am` session (proactive.py lines 437 and 488).
-   - The behind and diverged Conditions name only merge, rebase, cherry-pick and revert. Their reference to Hint structure item 7 lists `rebase-apply` without the `applying` distinction, so whether `git am` counts is ambiguous.
-   - stash-entries and unpushed-branches, by contrast, name `git am` explicitly.
-   Why it matters: the spec and the code disagree, while the intro says they have been reconciled.
+8. Documentation links, Maintenance script (line 2908) compared with src/git_hints/docs.py line 47 and the `version=` fields.
+   - Problem: the spec gives `v2.56.0` as the example of "the release that `git-scm.com` serves". The table says its section anchors "were verified against Git 2.56.1, the release `git-scm.com` serves", and v2.56.1 (2026-10-23) exists in the clone.
+   - Why it matters: a maintainer following the spec checks an older release than the one the table records. The pages linked are the same at both tags, so this is low severity.
 
-<del>9\. Location: Development strategy introduction, 1st bullet and "the code follows the specification"; also the "Fetch to see the newest remote commits?" section as a whole. Problem: stale-fetch is specified as a current hint, with conditions, a test case and a documentation-table entry. src/git_hints/ does not implement it: `proactive.CHECKS` has no stale_fetch, and the docs.py comment says "specified but not implemented yet". Its section has no gather heading, and the intro never marks it as pending. Why it matters: the spec, which is the single source of truth, describes behavior the tool does not have, and the plan's status cannot be read from the spec. Running the stale-fetch test case as specified would fail.</del>
+Total: 8 findings.
 
-Total: 9 findings.
-
-Things I checked and found accurate:
-- The precedence list in item 5 matches `hint.PRECEDENCE`. Its only practical effect is putting stash-entries ahead of stale-fetch, which stale-fetch test step 9 relies on.
-- The anchor-derivation examples (`_configuration_2`, `_internalssparse_checkout`, `_rebase_vs_pullmerge`, UPSTREAM-BRANCHES, `REMOTES[[REMOTES]]` giving `_remotes`).
-- The moving anchors on origin/master, none of which are in v2.56.0 or v2.56.1.
-- The `--decorate-refs` change in Git 2.35.
-- The hiding of an empty-tree root commit and the empty lines from other root commits.
-- Per-worktree FETCH_HEAD, and FETCH_HEAD left empty by a failed fetch and by a fetch that fetches nothing (truncation happens before connecting, already in v2.34.0).
-- `git commit -a` holding index.lock while its editor is open.
-- `git diff`'s refresh ignoring GIT_OPTIONAL_LOCKS.
-- The tag/branch push ambiguity.
-- Every docs.py URL appears in the hint sections, and every hint-section Markdown link is in the table.
-
-Scratch repositories: `<scratch>/spec-review/` (t1–t5, env.sh).
-
-I rejected finding 1 because the specification chooses this command for both
-`push-ahead` and `unpushed-branches`, finding 4 because collecting titles in
-`ifdef::` blocks and leaving their confirmation to `--site` is a recorded
-choice, finding 7 because the step checks what it claims, that inspection keeps
-working while the index lock is held, and finding 9 because the specification
-states wanted behavior before the code. I stopped after this round: its
-accepted findings were edge cases, such as a symbolic link loop at `FETCH_HEAD`
-or an upstream configured in a single-branch clone, and each further round added
-detail of that kind, which the assignment warns produces an overspecified
-result.
+I rejected finding 6 because the precedence list is a deterministic rule that
+places `stash-entries` on purpose, and finding 7 because the specification
+defines `moves` as an early warning that does not fail the run. Round 10
+confirmed the fixes of round 9. I recorded its other findings without acting on
+them: findings 1 and 2 are minor (the outcome of `git stash apply` when untracked
+files already exist, and two behaviors the Development strategy list does not
+name), and findings 3 to 5 and 8 are wording or test-strength points. Another
+round of fixes would again need a confirming review, and the assignment warns
+that LLM-driven changes produce an overspecified result.
 
 #### Implementation review rounds
 
 I wrote the implementation with Claude Opus 5.5 in Claude Code. Each round used
 the same model with the prompt shown under Last implementation review; it
 reviewed the implementation of the Documentation links section and the push
-commands for branch names that start with `+`.
+commands for branch names that start with `+`. From round 4 on, the prompt also
+covers the later changes to `unpushed-branches`, `no-upstream-branch`,
+`detached-head`, `changes-on-default-branch`, and the inspection `git diff`.
 
 | Round | Findings | Main changes made |
 | ----- | -------- | ----------------- |
 | 1     | 3        | The list of moving anchors names all four, and a test comment no longer cites a removed example; 1 finding rejected because the specification does not require each hint's test to assert its link |
 | 2     | 4        | `tests/test_docs.py` also checks that each entry's kind fits its URL and that no URL repeats; 3 findings rejected because they contradict what the specification chose for the test and the script |
 | 3     | 8        | The link checks also catch URLs in fenced blocks and link titles, the script renders link macros in titles, and the hint tests assert their remaining documentation links; 3 findings rejected because they contradict what the specification chose for the checks and the script |
+| 4     | 3        | Both refusals of `git switch` (an `am` session and a merge) now hide `changes-on-default-branch`; 2 trivial findings recorded without changes |
+| 5     | 6        | None; this was the confirming round, 1 finding rejected as contradicting the specification, and the others recorded below without changes |
 
 #### Last implementation review
 
 Prompting Claude Opus 5.5 in Claude Code with the following prompt produced the
-round 3 output below; strikethrough indicates findings that I deemed incorrect
+round 5 output below; strikethrough indicates findings that I deemed incorrect
 or irrelevant, and local paths are replaced as above.
 
 ```text
-Review the implementation of these parts of spec.md in <repo>: the "Documentation links" section, which is implemented by src/git_hints/docs.py, the links in src/git_hints/proactive.py and src/git_hints/reactive.py, tests/test_docs.py, scripts/check_doc_links.py, and the CodeChat markup in the code and in spec.md; and the push commands of `unpushed-branches` and `no-upstream-branch` for branch names that start with `+`. Check that the code does what the specification says, that the tests can detect violations of it, and that the script's output and exit codes follow it; verify claims about Git's documentation against the Git source at <git-source> and the live pages on git-scm.com. Avoid stylistic suggestions. You may create scratch files under <scratch>/impl-review-3. Do not modify any file in the repository. Report the findings as a numbered list, each with the location, the problem, and why it matters, followed by the total number of findings.
+Review the implementation of these parts of spec.md in <repo>: the "Documentation links" section, which is implemented by src/git_hints/docs.py, the links in src/git_hints/proactive.py and src/git_hints/reactive.py, tests/test_docs.py, scripts/check_doc_links.py, and the CodeChat markup in the code and in spec.md; the push commands of `unpushed-branches` and `no-upstream-branch` for branch names that start with `+`; and the later changes to `unpushed-branches`, `no-upstream-branch`, `detached-head`, `changes-on-default-branch`, and the inspection `git diff` (`diff.autoRefreshIndex`) in src/git_hints/proactive.py and src/git_hints/git.py, with their tests. Check that the code does what the specification says, that the tests can detect violations of it, and that the script's output and exit codes follow it; verify claims about Git's documentation against the Git source at <git-source> and the live pages on git-scm.com. Avoid stylistic suggestions. You may create scratch files under <scratch>/impl-review-5. Do not modify any file in the repository. Report the findings as a numbered list, each with the location, the problem, and why it matters, followed by the total number of findings.
 ```
+
+**Review of `<repo>:` 6 findings, none in the documentation-link machinery**
+
+**Checked with no findings:**
+- **Full suite:** 74 tests pass.
+- **Links in the code:** every link in `proactive.py` and `reactive.py` matches the spec's hint text and comes from `docs.py`.
+- **`test_docs.py`:** checks 1–5 are implemented as specified, and its reader finds all 56 manual URLs in the hint sections.
+- **`check_doc_links.py`:**
+  - Against v2.56.1 offline it prints ok/moves/unchecked and exits 0. With `--site` it exits 0. Against `origin/master` it prints `missing` and exits 1. A bad tag or checkout exits 2 before any check.
+  - Its derived IDs match the `id=` attributes on about 130 live git-scm.com pages. The only extra IDs are ones inside `ifdef`/`ifndef` blocks (`git-log`, `git-replay`, `git-shortlog`), which the spec allows. The only missing ones are footnotes.
+- **Spec claims checked against the Git source and live pages, all correct:**
+  - `UPSTREAM-BRANCHES`, `REMOTES`, `_remotes` and `_configuration_2`.
+  - `_internalssparse_checkout`, `_rebase_vs_pullmerge` and `todo`.
+  - `{litdd}`.
+  - The 4 anchors that move on master (`origin/master` matches `ls-remote`, the new `gitmergeconflicts` page is in no release and returns 404 on the site), and the 2.56.1 release that git-scm.com serves.
+  - The 4 option-ID dates.
+  - `git switch` refusing during operations (`builtin/checkout.c:1624-1655`).
+  - The forced index refresh: `diff.autoRefreshIndex` sets `skip_stat_unmatch`, and `refresh_index_quietly` takes the lock without checking `GIT_OPTIONAL_LOCKS`.
+- **CodeChat:** in a simulation of CodeChat's Python block splitter, every `following` value covers exactly its function. All IDs are `cc-` plus 10 characters, unique, gathered, and none clash with the `<h4>` IDs.
+- **Push commands:** names starting with `+` are written as `refs/heads/<branch>` in both hints.
 
 **Findings**
 
-<del>1\. **spec.md:2769-2775 (check 2) and tests/test_docs.py:350-391 (lines 359 and 379-385): URLs in code spans are never checked against the table.** - **Problem:** In the second direction, check 2 only checks that Markdown link URLs are in the table. A code span may name any URL. That covers the operation-in-progress hint text, which gives its four links only as code spans (spec.md:1449-1452), and every URL a test case expects. - **Mutations tried:** I changed `git-revert#_sequencer_subcommands` at spec.md:1452 to `git-revert#_description`, which is not in the table. `test_table_matches_spec` still passes. Changing detached-head's test-case URL at spec.md:1137 to `#DETACHED_HEAD` also passes. - **Why it matters:** The spec says the hint text stays authoritative and that this test checks the spec and the table agree. Right now a stale or mistyped URL in hint text or in a test case goes unnoticed. Today no code-span URL in the hint sections is outside the table, so requiring code spans to be table entries would break nothing.</del>
+1. **No test catches reversed arguments in the new `no-upstream-branch` ancestry check.**
+   - **Where:** `tests/test_remote.py:320-325`, spec.md test case step 12 (lines 735-739), code at `src/git_hints/proactive.py:612-615`.
+   - **Problem:** Step 12 only tests a remote branch equal to HEAD and a diverged one. I swapped the arguments to `merge-base --is-ancestor HEAD refs/remotes/origin/<branch>` in a scratch copy and the whole suite still passed (74 passed).
+   - **Why it matters:** with the arguments swapped, the hint disappears in its most common case: the branch was pushed without `-u` and then got new local commits. The `unpushed-branches` test (step 8) has an "ahead" step; this test case needs one too, such as a commit after `git push origin side`.
 
-<del>2\. **src/git_hints/docs.py:281-284 (`TABLE` built from `globals()`) and tests/test_docs.py:399-414 (check 3 skips all of docs.py): URLs in docs.py that are not table entries escape every check.** - **Problem:** Two kinds of link get past checks 2 and 3: an entry's `replacement` URL, and a `Doc` that is not bound to a module-level name, such as one written inline inside `OPERATIONS`. - **Mutation 1:** I changed proactive.py:208 to `docs.GIT_MERGE_HOW_TO_RESOLVE_CONFLICTS.replacement`. The hint now links to `https://git-scm.com/docs/gitmergeconflicts#resolve`, which returns 404 on git-scm.com today. All 69 tests pass. - **Mutation 2:** I put an inline `Doc("…git-revert#_bogus_anchor", "option")` in `OPERATIONS`. All 5 tests in test_docs.py pass, and check_doc_links.py never looks at it. Only the operation-in-progress hint test catches it, because that test happens to name the revert URL. - **Why it matters:** spec.md:2784-2786 claims "Check 2 can pass only when every link the code shows is in a hint section", and that does not hold.</del>
+<del>2\. **`detached-head` in its `data-loss risk` variant is hidden while unmerged paths exist, although its only command works.** - **Where:** spec.md 1117-1120 and the Development strategy bullet at 3196-3201; `src/git_hints/proactive.py:309`. - **Problem:** the stated reason is that the hint's `git switch` commands would fail. But `git switch -c <name>` with no start point skips `merge_working_tree` (`only_merge_on_switching_branches`, `builtin/checkout.c:1199-1207`), so it does not refuse unmerged paths. Only `git switch <branch>` does (line 887). The data-loss variant shows only `git switch -c`. - **Reproduced:** two commits on no branch, then a conflicting `git stash pop`. `git-hints --all` shows only `merge-conflicts`, and `git switch -c rescue` exits 0. - **Why it matters:** the one hint that warns those commits can be lost disappears without the reason the spec gives.</del>
 
-3. **spec.md:2786-2787 and the hint tests: no test checks which table entry each of these six hints shows.**
-   - **Problem:** Check 2 only compares the two sets of URLs. Neither the hint tests nor the spec's test cases name these hints' URLs:
-     - `unstaged-changes` → `git-add#_description`
-     - `push-ahead` → `git-push#_description`
-     - `no-upstream-branch` → `git-push#UPSTREAM-BRANCHES`
-     - `bisect-in-progress` → `git-bisect#_basic_bisect_commands_start_bad_good`
-     - `stash-entries` "apply or drop" → `git-stash#_commands`
-     - `operation-in-progress` "stage" → `git-merge#_how_to_resolve_conflicts`
-   - **Mutation:** I pointed `bisect-in-progress` and `push-ahead` at `git-fetch#_description`, and stash-entries' "apply or drop" at `git-stash#_examples`. All 69 tests pass.
-   - **Why it matters:** "Hint tests keep checking links through `git-hints --all`" is not true for these six links, so a hint showing the wrong passage would ship.
+3. **The new suppressions miss a cherry-pick or revert sequence in which Git still refuses `git switch`.**
+   - **Where:** spec.md 1408-1417 (`changes-on-default-branch` step 4) and 1117-1120 (`detached-head`); `src/git_hints/git.py:397-419`; `proactive.py:964` and `:309`.
+   - **Problem:** detection relies only on `CHERRY_PICK_HEAD` and `REVERT_HEAD`. Git's `wt_status_get_state` (`wt-status.c:1950-1958`) also reports a cherry-pick or revert from `.git/sequencer`.
+   - **Reproduced:** `git cherry-pick A B` stops on a conflict at A; resolve it, `git commit`, and edit a file on the default branch. `CHERRY_PICK_HEAD` is gone and `sequencer/` remains. `git-hints` lists `changes-on-default-branch`, while `git switch -c x` fails with "cannot switch branch while cherry-picking".
+   - **Why it matters:** this contradicts the stated reason for the change ("`git switch` refuses to run during a … cherry-pick, revert"). `operation-in-progress` documents this limitation for itself, but these two sections do not.
 
-4. **tests/test_docs.py:55-84 and 307 (`unfence`): manual URLs inside a fenced code block in a hint section are silently ignored.**
-   - **Problem:** The test blanks fenced code blocks before parsing. A fenced block containing `https://git-scm.com/docs/git-bogus#_x` in "Stage files" passes.
-   - **Why it matters:** Spec check 2 says a URL outside a Markdown link and outside a code span fails. A fenced block is neither, so the test misses a violation the spec defines.
+4. **Most of the new `detached-head` suppressions are untested.**
+   - **Where:** spec.md test case steps 17-18 (1224-1234); `tests/test_state.py:624-656`.
+   - **Problem:** only merge and unmerged paths are exercised. Replacing `operations.combining` with `operations.merge or operations.rebase` (which drops cherry-pick, revert and `git am`) still passes `test_detached_head`. The same is true, from before this change, of `changes-on-default-branch` with cherry-pick and revert (removing them still passes `test_changes_on_default_branch`).
+   - **Why it matters:** the Development strategy requires a test for every behavior change. Here the tests cannot detect the loss of the cherry-pick, revert, or `git am` suppression.
 
-5. **tests/test_docs.py:318-326: a manual URL inside a link's title or label is reported as bare.**
-   - **Problem:** Only the destination counts as covered. `[y](https://git-scm.com/docs/git-add#_description "see https://…")` fails with "neither a link destination nor a code span".
-   - **Why it matters:** The test is stricter than spec check 2, which only fails URLs outside a Markdown link. Text that follows the spec could fail the test.
+5. **The code does not check what `changes-on-default-branch` step 4 specifies.**
+   - **Where:** spec.md 1411-1414, versus `Repo.operations` in `src/git_hints/git.py:399-418`.
+   - **Problem:** the spec says to suppress the hint "if any returned path exists" for `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `rebase-merge` and `rebase-apply`. The code instead resolves `MERGE_HEAD`, `CHERRY_PICK_HEAD` and `REVERT_HEAD` with `rev-parse --verify` and requires `rebase-merge` and `rebase-apply` to be directories. The same directory test applies to `detached-head` step 4 ("if any of the returned paths exists").
+   - **Reproduced:** with an empty `.git/MERGE_HEAD`, or a `rebase-merge` regular file, `changes-on-default-branch` is still listed. `git switch -c` refuses in both cases, because Git only `stat`s `MERGE_HEAD` and the rebase paths (`wt-status.c:1934`).
+   - **Why it matters:** this is a narrow, corrupted-state case, but the code diverges from the spec, and the spec's version matches Git.
 
-6. **scripts/check_doc_links.py:281-318 (`render_title`) and :224 / :368 (`INLINE_ANCHOR`): IDs are derived from titles that were not fully rendered.**
-   - **Macros in titles:** `render_title` does not render inline macros. On MyFirstContribution (served at git-scm.com/docs/MyFirstContribution), the title `https://discord.gg/GRFVkzgxRd[#discord] on Discord` gets `_httpsdiscord_gggrfvkzgxrddiscord_on_discord` from the script, but the live page has `_discord_on_discord`. The same happens with `_git_devel_on_libera_chat`.
-   - **Effect:** I gave the script entries for these two anchors. Offline it prints `missing` and exits 1, while `--site` prints `ok` for both.
-   - **Passthrough:** The passthrough `+++[[dco]]+++` (MyFirstContribution.adoc:296) is collected as an anchor. `dco` does not exist on the live page, so an entry for it would wrongly pass.
-   - **Why it matters:** Spec rule 2 says the title is first rendered as Asciidoctor renders it. No entry in the table is affected today.
+6. **The quoting rule's PowerShell claim is wrong for curly quotes in branch names.**
+   - **Where:** spec.md Hint structure item 2 (162-167), which `unpushed-branches` now cites (1871-1872); `src/git_hints/hint.py:244-259`.
+   - **Problem:** PowerShell treats U+201C, U+201D and U+201E as double quotes, and U+2018, U+2019, U+201A and U+201B as single quotes. Ref names may contain these characters. A branch named `a“b` gets `git push -u origin "a“b"`, which PowerShell splits. On Windows, `it’s$x` gets `'it’s$x'`, where `’` ends the string because only ASCII `'` is doubled.
+   - **Why it matters:** the spec says double quotes "work in POSIX shells, PowerShell, and `cmd`" without exception, and the code relies on that. Such names produce push commands that fail in PowerShell.
 
-<del>7\. **scripts/check_doc_links.py:59-61 and 486-496; spec.md:2733-2737 and 2835-2836: an anchor that will move but has no recorded replacement still exits 0.** - **Problem:** The spec requires the expected replacement to be recorded for every moving anchor. Under item 4, a `moves` line without a replacement still gives exit 0. - **Why it matters:** The tests cannot see moves offline, so nothing enforces the rule. Today all four `moves` entries have replacements, and every replacement exists on origin/master.</del>
+Total number of findings: 6
 
-8. **spec.md:2690-2691: the claim about where UPSTREAM BRANCHES is included is incomplete.**
-   - **Problem:** The spec says the section is "included into `git-pull` and `git-push` from `urls-remotes.adoc`". `urls-remotes.adoc` is also included by `git-fetch.adoc:55` at v2.56.1 and on master.
-   - **Evidence:** The live git-fetch page has `id="UPSTREAM-BRANCHES"` (and `REMOTES` / `_remotes`).
-   - **Why it matters:** This is a factual statement about Git's documentation, and it reads as a complete list.
+Scratch scripts and downloaded pages are in `<scratch>/impl-review-5` (`fragments.py`, `compare.py`, `compare2.py`, `links.py`, and `exp1`–`exp4` for the reproductions). No repository file was modified.
 
-**Checked and correct**
-- **`+` push commands:**
-  - `push_source` (proactive.py:566) and its use in no-upstream-branch (:603) and unpushed-branches (:1216-1228) match the spec.
-  - Git's refspec parsing confirms the reason (refspec.c:29-31 at v2.56.1).
-  - The tests cover the spec's steps (test_remote.py:281-285 and 422-439).
-  - I also ran a scratch case: `+plus` tracking `origin/other` gives `git push origin refs/heads/+plus:other`, which is correct.
-- **Links in the hint modules:** all 34 code links match the spec's hint text exactly (label, URL and title).
-- **Live and source checks:** `check_doc_links.py ../git v2.56.1 --site` exits 0 on the real table. git-scm.com serves 2.56.1.
-- **Spec examples:** these IDs exist on the live pages: `_rebase_vs_pullmerge`, `_internalssparse_checkout`, `_configuration_2`, `_remotes`/`REMOTES`, `UPSTREAM-BRANCHES` and `todo`. The moving-anchor claims hold on origin/master, and no tag contains those changes yet.
-- **Script against the site:** IDs derived at v2.56.1 match the live pages for 228 pages. The only differences are the `ifdef`/`ifndef` cases the spec acknowledges, plus finding 6.
-- **Script exit codes:** 1 for `missing`, `missing-site`, `unreachable` and `replacement-missing`; 2 when the tag is absent.
-- **CodeChat markup:**
-  - All 80 fragments cover exactly their whole function under CodeChat's Python lexer rules, and every marker ends its comment.
-  - Every gathered ID exists and no fragment is left unused. IDs are unique and have the form `cc-` plus 10 characters.
-  - Gather headings close each implemented hint section. Shared helpers (`push_source`, `plural`, `overwritten_paths`) have no fragment, as the spec says.
-
-The repository is unchanged. I removed the Python 3.14 `.pyc` caches my imports had written. Mutation and comparison scripts, plus the downloaded live pages, are in `<scratch>/impl-review-3`
-
-Total: 8 findings.
-
-I rejected finding 1 because check 2 compares code spans only in the direction
-from the table to the specification, finding 2 because check 3 exempts
-`docs.py`, which is the table, and finding 7 because the specification fixes
-which lines make the script fail and `moves` is not one of them. I stopped
-after this round, whose accepted findings were gaps in the test checks and rare
-title markup, for the same reason as the specification review.
+I rejected finding 2 because the specification hides `detached-head` while
+unmerged paths exist on purpose. Round 5 confirmed the fixes of round 4. I
+recorded its other findings without acting on them: finding 1 is a missing test
+case (a branch ahead of its `origin` namesake), and findings 3 to 6 are rare
+cases or test-strength points, for the same reason as the specification review.
 
 ### Aiym Takimbayeva
 
