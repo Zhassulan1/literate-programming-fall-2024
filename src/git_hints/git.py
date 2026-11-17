@@ -88,6 +88,13 @@ class FileInspectionError(InspectionError):
         )
 
 
+# Several inspection failures that one check found, each reported separately.
+class InspectionErrors(Exception):
+    def __init__(self, errors: list[InspectionError]) -> None:
+        super().__init__("; ".join(map(str, errors)))
+        self.errors = errors
+
+
 # Return the status of a file that inspection reads directly, or `None` when
 # it doesn't exist; any other operating-system error is an inspection failure.
 def file_status(path: Path) -> os.stat_result | None:

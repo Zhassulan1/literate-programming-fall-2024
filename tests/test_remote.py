@@ -326,7 +326,7 @@ def test_no_upstream_branch(tmp_path_factory: pytest.TempPathFactory) -> None:
 def clone_and_push(remote: Path, local: Path) -> None:
     config_user("user1", "user1@example.com")
     make_repo(remote, [["git", "init", "--bare", "-b", "main"]])
-    git(local.parent, "clone", str(remote), str(local))
+    make_repo(local, [["git", "clone", str(remote), str(local)]])
     commit_file(local, "foo.txt", "base\n", "Add foo.")
     git(local, "push", "-u", "origin", "main")
 
@@ -438,7 +438,9 @@ def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
     finally:
         git(local, "merge", "--abort")
 
-    git(single.parent, "clone", "--single-branch", str(remote), str(single))
+    make_repo(
+        single, [["git", "clone", "--single-branch", str(remote), str(single)]]
+    )
     git(single, "switch", "-c", "nf")
     commit_file(single, "nf.txt", "nf\n", "Add nf.")
     git(single, "push", "-u", "origin", "nf")
@@ -560,7 +562,7 @@ def test_stale_fetch(tmp_path_factory: pytest.TempPathFactory) -> None:
 
     # A fetch from an empty repository succeeds but fetches nothing, which
     # leaves `FETCH_HEAD` empty; only the successful `--fetch` skips the hint.
-    git(empty, "init", "--bare")
+    make_repo(empty, [["git", "init", "--bare"]])
     git(local, "remote", "set-url", "origin", str(empty))
     result = run_hints(local, "--all", "--fetch")
     assert result.returncode == 0, result.stderr

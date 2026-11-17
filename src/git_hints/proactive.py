@@ -4,9 +4,10 @@
 # Running `git-hints` with no subcommand inspects the repository containing
 # the current directory and shows the hints whose conditions hold. Each hint
 # has a check function below which returns the hint or `None`; a check raises
-# `InspectionError` when a command it depends on fails unexpectedly, which
-# suppresses only that hint. Every check except `not-a-repo` assumes that the
-# current directory is inside a working tree.
+# `InspectionError` when a command it depends on fails unexpectedly, or
+# `InspectionErrors` for several such failures, which suppresses only that
+# hint. Every check except `not-a-repo` assumes that the current directory is
+# inside a working tree.
 #
 # Before recommending a workflow command, a check consults `Repo.operations`
 # and `Repo.unmerged_paths`: a paused merge, rebase, cherry-pick, or revert
@@ -36,6 +37,7 @@ from .git import (
     DIFF,
     GitLaunchError,
     InspectionError,
+    InspectionErrors,
     Repo,
     file_status,
     split_nul,
@@ -1338,14 +1340,22 @@ def stale_fetch(ctx: Context) -> Hint | None:
     # Use the newest of the files that exist. `file_status` skips a missing
     # file, but any other error examining either one, such as a denied
     # permission, is an unexpected inspection failure naming the file, which
-    # suppresses this hint while the others are still shown.
+    # suppresses this hint while the others are still shown. Both files are
+    # examined, so that each one that fails is reported.
     newest: os.stat_result | None = None
+    errors: list[InspectionError] = []
     for path in (Path(lines[0]), Path(lines[1]) / "FETCH_HEAD"):
-        status = file_status(path)
+        try:
+            status = file_status(path)
+        except InspectionError as error:
+            errors.append(error)
+            continue
         if status is None:
             continue
         if newest is None or status.st_mtime > newest.st_mtime:
             newest = status
+    if errors:
+        raise InspectionErrors(errors)
     if newest is None:
         return None
     if newest.st_size == 0:
@@ -1467,17 +1477,22 @@ CHECKS: list[Callable[[Context], Hint | None]] = [
 def collect_hints(ctx: Context) -> tuple[list[Hint], list[InspectionError]]:
     def run_check(
         check: Callable[[Context], Hint | None],
-    ) -> Hint | InspectionError | None:
+    ) -> Hint | list[InspectionError] | None:
         try:
             return check(ctx)
         except InspectionError as error:
-            return error
+            return [error]
+        except InspectionErrors as group:
+            return group.errors
 
     with ThreadPoolExecutor(max_workers=len(CHECKS)) as executor:
         outcomes = list(executor.map(run_check, CHECKS))
     hints = [outcome for outcome in outcomes if isinstance(outcome, Hint)]
     errors = distinct_errors(
-        outcome for outcome in outcomes if isinstance(outcome, InspectionError)
+        error
+        for outcome in outcomes
+        if isinstance(outcome, list)
+        for error in outcome
     )
     return hints, errors
 
