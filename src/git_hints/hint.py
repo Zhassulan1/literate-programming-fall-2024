@@ -110,6 +110,7 @@ PRECEDENCE = [
     "staged-changes",
     "unstaged-changes",
     "untracked-files",
+    "stash-entries",
 ]
 
 

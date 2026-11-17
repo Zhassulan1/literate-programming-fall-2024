@@ -1001,6 +1001,87 @@ def tracked_but_ignored(ctx: Context) -> Hint | None:
     )
 
 
+# Stash
+# -----
+#
+# Stash entries belong to the whole repository, so they are easy to forget
+# after switching branches. The hint is hidden as a whole during an operation,
+# a `git am` session, or a bisect, and while conflicts remain: applying a stash
+# then would interfere, and the hints explaining that state come first.
+def stash_entries(ctx: Context) -> Hint | None:
+    repo = ctx.repo
+    operations = repo.operations
+    if (
+        operations.paused
+        or operations.am
+        or operations.bisect
+        or repo.unmerged_paths
+    ):
+        return None
+    # One line per entry, newest first; no output when there is no stash.
+    entries = repo.check("stash", "list").stdout.splitlines()
+    if not entries:
+        return None
+    count = "1 entry" if len(entries) == 1 else f"{len(entries)} entries"
+    # Each line gets its own code span, so a stash message is never read as
+    # Markdown.
+    listed = "; ".join(code(entry) for entry in entries[:5])
+    hidden = len(entries) - 5
+    if hidden > 0:
+        listed += f"; and {hidden} more"
+    show = "`git stash show -p --include-untracked 0`"
+    return Hint(
+        id="stash-entries",
+        priority=Priority.INFORMATIONAL,
+        text=(
+            f"This repository has {count} in its "
+            "[stash](https://git-scm.com/docs/git-stash#_description "
+            '"Saved changes that you can list, inspect, and apply again '
+            'later"). Stash entries belong to the whole repository, not to '
+            "the branch you were on, so they stay listed after you switch "
+            f"branches. The newest ones are: {listed}. Do you want to "
+            "[apply or drop](https://git-scm.com/docs/git-stash#_commands "
+            '"Commands that restore a stash entry or remove it from the '
+            'list") them?'
+        ),
+        stage=(
+            "Stash entries are commits kept in your local repository outside "
+            "any branch; their changes are not in your working directory "
+            "until applied."
+        ),
+        commands=(
+            Command(
+                show,
+                "Git shows the changes of `stash@{0}`, the newest entry, as a "
+                "patch, including untracked files that `git stash push -u` "
+                "saved. For an older entry, use its index from "
+                "`git stash list` instead of `0`.",
+            ),
+            Command(
+                "`git stash apply 0`",
+                "`git status` lists the restored changes, and the entry stays "
+                "in `git stash list`. If the changes conflict with your "
+                "files, Git either refuses to apply them or leaves conflicts "
+                "to resolve, and the entry stays in the list.",
+            ),
+            Command(
+                "`git stash drop 0`",
+                "Git deletes the entry, and its changes may be impossible to "
+                f"recover; first check with {show} that they are applied or "
+                "committed.",
+                Safety.WARNING,
+            ),
+            Command(
+                "`git stash pop 0`",
+                "Git applies the entry and, on success, drops it, so its "
+                "changes then exist only in your working directory; first "
+                f"check them with {show}.",
+                Safety.WARNING,
+            ),
+        ),
+    )
+
+
 # Configuration
 # -------------
 def commit_identity(ctx: Context) -> Hint | None:
@@ -1068,6 +1149,7 @@ CHECKS: list[Callable[[Context], Hint | None]] = [
     many_changed_files,
     changes_on_default_branch,
     tracked_but_ignored,
+    stash_entries,
     commit_identity,
 ]
 

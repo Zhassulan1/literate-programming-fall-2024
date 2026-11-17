@@ -709,3 +709,87 @@ def test_changes_on_default_branch(
         assert "changes-on-default-branch" not in hint_ids(local)
     finally:
         git(local, "merge", "--abort")
+
+
+# `stash-entries`
+# ---------------
+def test_stash_entries(tmp_path_factory: pytest.TempPathFactory) -> None:
+    (repo,) = make_temps(tmp_path_factory, 1)
+    config_user("user1", "user1@example.com")
+    make_repo(
+        repo,
+        [
+            ["git", "init", "-b", "main"],
+            write(repo / "foo.txt", "xxx"),
+            ["git", "add", "foo.txt"],
+            ["git", "commit", "-m", "Add foo."],
+        ],
+    )
+    assert git(repo, "stash", "list").stdout == ""
+    assert "stash-entries" not in hint_ids(repo)
+
+    make_repo(
+        repo,
+        [
+            append(repo / "foo.txt", "y"),
+            ["git", "stash", "push", "-m", "First change"],
+        ],
+    )
+    first = "stash@{0}: On main: First change"
+    assert git(repo, "stash", "list").stdout.splitlines() == [first]
+    assert "stash-entries" in hint_ids(repo)
+    _, found = all_blocks(repo)
+    block = found["stash-entries"]
+    assert "1 entry" in block
+    assert first in block
+    assert "https://git-scm.com/docs/git-stash#_description" in block
+    assert commands(block) == [
+        "git stash show -p --include-untracked 0",
+        "git stash apply 0",
+        "Warning: git stash drop 0",
+        "Warning: git stash pop 0",
+    ]
+
+    git(repo, "switch", "-c", "other")
+    assert "stash-entries" in hint_ids(repo)
+
+    git(repo, "switch", "main")
+    for number in range(5):
+        make_repo(
+            repo,
+            [
+                append(repo / "foo.txt", f"line {number}\n"),
+                ["git", "stash", "push"],
+            ],
+        )
+    _, found = all_blocks(repo)
+    block = found["stash-entries"]
+    assert "6 entries" in block
+    for index in range(5):
+        assert f"stash@{{{index}}}" in block
+    assert "stash@{5}" not in block
+    assert "and 1 more" in block
+
+    make_repo(
+        repo,
+        [
+            ["git", "switch", "-c", "topic"],
+            write(repo / "foo.txt", "topic"),
+            ["git", "commit", "-am", "Topic change."],
+            ["git", "switch", "main"],
+            write(repo / "foo.txt", "main"),
+            ["git", "commit", "-am", "Main change."],
+        ],
+    )
+    assert git(repo, "merge", "topic", check=False).returncode != 0
+    try:
+        assert "stash-entries" not in hint_ids(repo)
+    finally:
+        git(repo, "merge", "--abort")
+
+    git(repo, "bisect", "start")
+    try:
+        assert "stash-entries" not in hint_ids(repo)
+    finally:
+        git(repo, "bisect", "reset")
+    assert "stash-entries" in hint_ids(repo)
