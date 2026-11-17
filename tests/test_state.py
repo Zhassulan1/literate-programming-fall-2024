@@ -252,7 +252,7 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 # `detached-head`
 # ---------------
-# <fragment id="cc-R_xrTpSWD5" following="9"></fragment>
+# <fragment id="cc-R_xrTpSWD5" following="11"></fragment>
 def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
     local, remote = make_temps(tmp_path_factory, 2)
     config_user("user1", "user1@example.com")
@@ -304,6 +304,15 @@ def test_detached_head(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "detached-head" in ids
     assert "no-upstream-branch" not in ids
     assert "no-commits" not in ids
+    # A tag with the branch's name doesn't change the suggested branch, which
+    # `%(refname:short)` would print as `heads/main`.
+    git(local, "tag", "main")
+    try:
+        _, found = all_blocks(local)
+        assert "git switch main" in found["detached-head"]
+        assert "heads/main" not in found["detached-head"]
+    finally:
+        git(local, "tag", "-d", "main")
 
     # Commit while detached.
     make_repo(

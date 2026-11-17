@@ -298,12 +298,14 @@ def detached_head(ctx: Context) -> Hint | None:
     if operations.rebase_dir_exists or operations.bisect:
         return None
     # Step 5: find the local branches that contain HEAD. Pass the format as a
-    # single argument with no quote characters.
+    # single argument with no quote characters. `lstrip=2` gives the name that
+    # `git switch` expects; `short` would give `heads/main` when a tag `main`
+    # exists.
     branches = repo.check(
         "for-each-ref",
         "--contains",
         "HEAD",
-        "--format=%(refname:short)",
+        "--format=%(refname:lstrip=2)",
         "refs/heads",
     ).stdout.splitlines()
     text = (
@@ -912,17 +914,18 @@ def changes_on_default_branch(ctx: Context) -> Hint | None:
     branch = repo.current_branch
     if branch is None:
         return None
-    # Step 2: without `origin/HEAD`, don't guess `main` or `master`.
+    # Step 2: without `origin/HEAD`, don't guess `main` or `master`. The full
+    # ref name is read, because `--short` gives `remotes/origin/main` when a
+    # local branch `origin/main` exists.
     default = repo.check(
         "symbolic-ref",
         "--quiet",
-        "--short",
         "refs/remotes/origin/HEAD",
         ok=(0, 1),
     )
     if default.returncode != 0:
         return None
-    if branch != default.stdout.strip().removeprefix("origin/"):
+    if branch != default.stdout.strip().removeprefix("refs/remotes/origin/"):
         return None
     # Step 3: on a branch with no commits, `no-commits` applies instead.
     if repo.head_commit is None:

@@ -350,9 +350,9 @@ def test_table_urls_point_to_manual() -> None:
 # as a code span that names it, such as the URL a test case expects. Every
 # manual link in the hint sections is in the table. Both directions compare
 # whole strings, so `git-push` doesn't match `git-push#_description`. A
-# replacement isn't served yet, so it isn't expected in the hint sections. A
-# code span may name a URL outside the table, such as the templated
-# `https://git-scm.com/docs/git-<operation>`.
+# replacement isn't served yet, so it isn't expected in the hint sections. Code
+# spans count only in the first direction: the second compares link
+# destinations with the table, so a code span may name a URL outside it.
 def test_table_matches_spec() -> None:
     references = hint_references(SPEC.read_text(encoding="utf-8"))
     shown = {ref.value for ref in references if ref.kind != "bare"}

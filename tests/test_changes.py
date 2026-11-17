@@ -632,7 +632,7 @@ def test_tracked_but_ignored_suppressed_during_conflict(
 
 # `changes-on-default-branch`
 # ---------------------------
-# <fragment id="cc-QYkz_SkNyN" following="1"></fragment>
+# <fragment id="cc-QYkz_SkNyN" following="3"></fragment>
 def test_changes_on_default_branch(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -672,6 +672,21 @@ def test_changes_on_default_branch(
         git(local, "diff", "--cached", "--quiet", check=False).returncode == 1
     )
     assert "changes-on-default-branch" in hint_ids(local)
+    # With a local branch `origin/main`, `--short` names the remote's default
+    # branch `remotes/origin/main`; the hint still finds it.
+    git(local, "branch", "origin/main")
+    try:
+        origin_head = git(
+            local,
+            "symbolic-ref",
+            "--quiet",
+            "--short",
+            "refs/remotes/origin/HEAD",
+        )
+        assert origin_head.stdout.strip() == "remotes/origin/main"
+        assert "changes-on-default-branch" in hint_ids(local)
+    finally:
+        git(local, "branch", "-D", "origin/main")
 
     make_repo(
         local,

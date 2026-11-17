@@ -223,6 +223,10 @@ BLOCK_ANCHOR = re.compile(r"\[\[((?:[^\W\d]|:)[\w:.-]*)(?:,.*)?\]\]")
 # An inline anchor `[[ID]]` anywhere in a line; a backslash escapes it.
 INLINE_ANCHOR = re.compile(r"(?<!\\)\[\[((?:[^\W\d]|:)[\w:.-]*)(?:,.*?)?\]\]")
 
+# An anchor that ends a title after a space, as in `TITLE [[ID]]`; as in
+# Asciidoctor, it gives the section its ID the way an anchor line does.
+TRAILING_ANCHOR = re.compile(r" \[\[((?:[^\W\d]|:)[\w:.-]*)(?:, *.+)?\]\]$")
+
 # A block attribute line such as `[synopsis]`, which belongs to the block after
 # it.
 ATTRIBUTE_LINE = re.compile(r"\[(?:|[\w.#%{,\"'].*)\]")
@@ -316,8 +320,8 @@ def derive_id(title: str) -> str:
 
 # Every ID of a page, in the order of the lines, from its lines with includes
 # resolved: each explicit anchor, and the ID of each section title without an
-# explicit anchor line before it. A derived ID that already occurs gets the
-# suffix `_2`, `_3`, and so on.
+# explicit anchor line before it or an anchor at its end. A derived ID that
+# already occurs gets the suffix `_2`, `_3`, and so on.
 def collect_ids(lines: Sequence[str]) -> list[str]:
     # The IDs found so far; a dictionary keeps their order.
     ids: dict[str, None] = {}
@@ -340,8 +344,10 @@ def collect_ids(lines: Sequence[str]) -> list[str]:
             i += 1
         elif title is not None:
             text, size = title
+            # Each anchor in the title adds its ID; a trailing one takes the
+            # place of the derived ID.
             anchors = INLINE_ANCHOR.findall(text)
-            if not anchored:
+            if not anchored and TRAILING_ANCHOR.search(text) is None:
                 base = derive_id(render_title(INLINE_ANCHOR.sub("", text)))
                 derived, count = base, 2
                 while derived in ids:
