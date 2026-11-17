@@ -269,14 +269,16 @@ class Repo:
         return result.stdout.splitlines() if result.returncode == 0 else []
 
     # Return absolute paths for Git-internal files, which may live outside
-    # `.git/` in linked worktrees or when the Git directory is elsewhere.
+    # `.git/` in linked worktrees or when the Git directory is elsewhere. Split
+    # only on newlines, since paths may contain other line separators.
     def git_paths(self, *names: str) -> list[Path]:
         args = ["rev-parse", "--path-format=absolute"]
         for name in names:
             args += ["--git-path", name]
-        lines = self.check(*args).stdout.splitlines()
+        result = self.check(*args)
+        lines = result.stdout.removesuffix("\n").split("\n")
         if len(lines) != len(names):
-            raise InspectionError(self.run(*args))
+            raise InspectionError(result, "unexpected `git rev-parse` output")
         return [Path(line) for line in lines]
 
     # Return true when a ref (such as `MERGE_HEAD`) resolves.

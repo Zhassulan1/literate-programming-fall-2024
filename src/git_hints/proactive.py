@@ -1253,7 +1253,8 @@ def stale_fetch(ctx: Context) -> Hint | None:
 
     # Each worktree has its own `FETCH_HEAD`, while remote-tracking branches
     # are shared, so this worktree's file and the main worktree's both count.
-    # In the main worktree they are the same file.
+    # In the main worktree they are the same file. Split Git's output only on
+    # newlines, since paths may contain other line separators.
     args = (
         "rev-parse",
         "--path-format=absolute",
@@ -1261,9 +1262,10 @@ def stale_fetch(ctx: Context) -> Hint | None:
         "FETCH_HEAD",
         "--git-common-dir",
     )
-    lines = repo.check(*args).stdout.splitlines()
+    result = repo.check(*args)
+    lines = result.stdout.removesuffix("\n").split("\n")
     if len(lines) != 2:
-        raise InspectionError(repo.run(*args))
+        raise InspectionError(result, "unexpected `git rev-parse` output")
     newest: os.stat_result | None = None
     for path in (Path(lines[0]), Path(lines[1]) / "FETCH_HEAD"):
         status = file_status(path)
