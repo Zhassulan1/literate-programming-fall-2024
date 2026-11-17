@@ -170,9 +170,7 @@ GIT_PUSH_UPSTREAM_BRANCHES = Doc(
     "section",
     version="2.56.1",
 )
-# `stale-fetch` suggests fetching. That hint is specified but not implemented
-# yet, so no hint uses this entry; it is here because the specification's hint
-# section names the link.
+# `stale-fetch` suggests fetching.
 GIT_FETCH_DESCRIPTION = Doc(
     "https://git-scm.com/docs/git-fetch#_description",
     "section",

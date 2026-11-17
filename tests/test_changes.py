@@ -769,7 +769,7 @@ def test_changes_on_default_branch(
 
 # `stash-entries`
 # ---------------
-# <fragment id="cc-bf_cVmh5QK" following="1"></fragment>
+# <fragment id="cc-bf_cVmh5QK" following="5"></fragment>
 def test_stash_entries(tmp_path_factory: pytest.TempPathFactory) -> None:
     (repo,) = make_temps(tmp_path_factory, 1)
     config_user("user1", "user1@example.com")
@@ -821,12 +821,17 @@ def test_stash_entries(tmp_path_factory: pytest.TempPathFactory) -> None:
             ],
         )
     _, found = all_blocks(repo)
-    block = found["stash-entries"]
-    assert "6 entries" in block
+    # A Result line also names `stash@{0}`, so look at the hint text only.
+    (text,) = [
+        line
+        for line in found["stash-entries"].splitlines()
+        if line.startswith("This repository has ")
+    ]
+    assert "6 entries" in text
     for index in range(5):
-        assert f"stash@{{{index}}}" in block
-    assert "stash@{5}" not in block
-    assert "and 1 more" in block
+        assert f"stash@{{{index}}}" in text
+    assert "stash@{5}" not in text
+    assert "and 1 more" in text
 
     make_repo(
         repo,
@@ -851,3 +856,16 @@ def test_stash_entries(tmp_path_factory: pytest.TempPathFactory) -> None:
     finally:
         git(repo, "bisect", "reset")
     assert "stash-entries" in hint_ids(repo)
+
+    # Git ends each entry with "\n" only, so a message containing other line
+    # breaks is still one entry.
+    make_repo(
+        repo,
+        [
+            append(repo / "foo.txt", "z"),
+            ["git", "stash", "push", "-m", "first second\fthird"],
+        ],
+    )
+    assert git(repo, "stash", "list").stdout.count("\n") == 7
+    _, found = all_blocks(repo)
+    assert "7 entries" in found["stash-entries"]

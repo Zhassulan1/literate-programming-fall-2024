@@ -722,12 +722,12 @@ and 2 reviewed the inspection implementation; rounds 3 and 4 reviewed
 `unpushed-branches` against its hint section and test case. The prompt for the
 latest scope is shown under Last implementation review.
 
-| Round | Findings | Main changes made |
-| ----- | -------- | ----------------- |
+| Round | Findings | Main changes made                                                                                                                                                                          |
+| ----- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1     | 2        | Changed the branch/tag test setup to clone the specified empty bare repository, and moved Trace2 output outside the working tree so the test does not introduce unrelated untracked files. |
-| 2     | 0        | No further changes. |
+| 2     | 0        | No further changes.                                                                                                                                                                        |
 | 3     | 0        | Confirmed that `unpushed-branches` implements branch discovery, upstream classification, suppression rules, command construction, ordering, truncation, and permanent last-fetch labeling. |
-| 4     | 0        | No further changes; the complete targeted test and the full 64-test suite passed with Ruff and ty. |
+| 4     | 0        | No further changes; the complete targeted test and the full 64-test suite passed with Ruff and ty.                                                                                         |
 
 #### Last implementation review
 
@@ -755,27 +755,141 @@ GitHub userid: Themaddelina
 
 #### Contributions
 
-(Team member's contributions)
+Using Claude Fable 5.2 and then Claude Opus 5.5, Madina moved the remaining
+Implementation Strategy requirements into the main specification, specified and
+tested failure reporting, implemented the `stash-entries` and `stale-fetch`
+proactive hints with their complete test cases, made `explain` report each
+failed inspection command once, and added CodeChat markup for `stash-entries`,
+`unpushed-branches`, and `stale-fetch`.
 
 #### Specification review rounds
 
-(Table showing spec review rounds)
+Both rounds 1 and 2 reviewed Madina's final specification changes with
+GPT-6-Luna. Round 1 checked the moved failure-reporting requirements and
+corresponding test; round 2 rechecked these changes against the surrounding
+specification. Rounds 3–10 reviewed only the failure-reporting requirements of
+Language and libraries and their test case with Claude Opus 5.5
+(`claude-opus-5-5`, in Claude Code), using the prompt shown under Last
+specification review. The accepted findings of round 10 were fixed
+in its commit; the review stopped there, because further rounds mostly asked
+for more detail than the specification needs.
+
+| Round | Findings | Main changes made |
+| ----- | -------- | ----------------- |
+| 1     | 0        | No changes; failure reporting is specified and tested, while the removed subsections duplicated requirements stated elsewhere. |
+| 2     | 0        | No further changes. |
+| 3     | 8        | Pointed the `explain` exit-code rules to the failure exceptions, dropped the wrong plain-mode exit-code sentence, defined failures of the context-line commands and of inspection commands in `explain`, kept the counter's state file unchanged after an inspection failure, and relaxed test steps 3 and 4. |
+| 4     | 7        | Required each failed inspection command, the counter's included, to be reported once with the command and its exit code, kept `No hints.` after failures, stopped inspection after a context-line failure, and gave the exact launch command for step 3. |
+| 5     | 7        | Stated that the upstream check of `no-upstream-branch` exits 128 without a resolvable upstream, limited operation-in-progress protection to commands an operation affects, made the counter skip every failure while unmerged entries exist, and limited `No hints.` after a failure to normal output. |
+| 6     | 6        | Specified that a failing `--fetch` remote-choosing command stops output, that file errors of inspection and inspection commands that cannot be launched are inspection failures, and that Git ended by signal N exits 128 + N, with matching code and new test steps. |
+| 7     | 5        | Limited the stop after context-line commands to unexpected failures, counted operating-system read errors as an unreadable state file, kept the `explain` success lines after inspection failures, and added test steps for a failed context command and a failure after a successful push. |
+| 8     | 7        | Required `explain` to keep the interrupt and quit signals from ending `git-hints` while Git runs, so that Ctrl+C still reports Git's exit code and standard error, with a test for exit code 130. |
+| 9     | 6        | Dropped the step 1 check that at most one failure line names the unmerged-paths command, in the spec and in its test. |
+| 10    | 11       | Required Git to keep default signal handling, named the failed command with its arguments and Git's message, counted separately reported invalid repository states as inspection failures, suppressed the rebase hint and removed the temporary file when counting fails, and made steps 1, 5 and 8 unambiguous. |
 
 #### Last specification review
 
-(LLM and prompt used)
+Prompting Claude Opus 5.5 (`claude-opus-5-5`, in Claude Code) with the
+following prompt produced the round 10 output below; strikethrough indicates LLM output that Madina deemed incorrect or irrelevant.
 
-(LLM output, possibly with strikethrough)
+```text
+Review ONLY the failure-reporting requirements in the "Language and libraries" section of spec.md (the paragraphs on exit codes and on reporting unexpected inspection failures and failures to launch Git) and the "Test case for the failure reporting of Language and libraries" in the "Testing" section. Check for technical inaccuracies, contradictions with existing requirements, missing implementation decisions, and ambiguous or untestable statements. Do not review other sections. Do not modify any files. Report only relevant, actionable findings in a numbered list, followed by the total number of findings. Avoid stylistic suggestions and unnecessary expansion.
+```
+
+Review of spec.md, limited to the failure-reporting paragraphs of "Language and libraries" (lines 2523-2567) and "Test case for the failure reporting of Language and libraries" (lines 2854-2940). No files were modified.
+
+1. **"Ignore" the interrupt signal breaks the required exit code 130 (lines 2533-2539, test step 6).** On POSIX, a signal set to `SIG_IGN` stays ignored in child processes after exec. If `git-hints` does the obvious `signal.signal(SIGINT, signal.SIG_IGN)`, Git and the alias shell inherit it. The `kill -INT 0` alias then does not end Git, and Git exits 0 instead of 130. I checked this locally with Git and Python: `SIG_IGN` gave returncode 0, while a no-op Python handler gave -2, which maps to 130. The spec should require a no-op handler, or resetting the children to `SIG_DFL`, rather than `SIG_IGN`.
+
+2. <del><strong>Signal handling has no defined scope or Windows behaviour (line 2536).</strong> The spec does not say when the original handlers are restored: right after Git exits, or after inspection as well. <code>signal.SIGQUIT</code> does not exist on Windows, so code that names it fails there, and "quit signal" has no defined Windows meaning.</del>
+
+3. **The failure message content is not defined (lines 2545-2548).** "Name the command" does not say whether this means the full argument list or just something like `git diff`. Test step 2 requires `--diff-filter=U` in the message, which only the full argument list satisfies. The spec also does not say whether the failed inspection command's own standard error (for example `fatal: index file smaller than expected`) is shown, forwarded or dropped. Without it, the message gives only a code.
+
+4. **Two other "report separately" rules fall outside the defined failure kinds.** `detached-head` condition 2 (line 1044: "Report an invalid or unreadable HEAD separately") and `no-commits` condition 2 (line 1214) ask for reports when commands return expected exit codes. The failure paragraph only defines three kinds: unexpected exit codes, launch failures, and OS errors on files. So the message format, exit code 1, and the "print what does not depend on it" rule are undefined for these cases.
+
+5. **The `rebase-after-repeated-integration-failures` hint is undefined when its reset write fails.** On the fifth qualifying failure, the hint is shown and the count is reset (line 2340). If that write fails, which is an unexpected inspection failure, the spec does not say whether the hint is still printed or suppressed as "depending on the failed command". No test covers it.
+
+6. **Leftover temporary file after a failed atomic write.** The state file is written through a temporary file and a rename. In step 5, the rename onto a directory fails after the temporary file was created. The spec does not say to remove it, so every failing run can leave a stray file under `git-hints/`.
+
+7. <del><strong>Git's exit code is lost under <code>--ids-only explain</code> after an inspection failure (lines 2541-2545).</strong> The exit code becomes 1 and the <code>Git exited with code &lt;n&gt;.</code> line is omitted under <code>--ids-only</code>. Neither the user nor test step 2's <code>--ids-only</code> run can recover Git's code. Requiring the <code>git-hints: </code> message to include Git's exit code would fix this.</del>
+
+8. <del><strong>The <code>--fetch</code> clause is undefined and untested (line 2562).</strong> "The commands that choose the remote" are not listed: for example the upstream lookup or <code>git remote</code>. <code>@{upstream}</code> exits 128 when there is simply no upstream, which is expected. So which failures stop all standard output is ambiguous, and no test step exercises this rule.</del>
+
+9. **Test step 1 does not say how stderr lines are compared (line 2871).** "Standard error has the same `git-hints: ` lines" does not say whether order matters. Checks run concurrently (Implementation Strategy), so message order is not deterministic. The spec should say the lines are compared as a set, or require a deterministic order.
+
+10. **Test steps 5 and 8 are worded ambiguously (lines 2912-2913, 2937-2939).** "Exactly one line ... starts with `git-hints: ` and contains `integration-failures.json`" can mean exactly one line meets both conditions, with other `git-hints: ` lines allowed, or exactly one `git-hints: ` line that also contains the name. Steps 3 and 7 use the stricter form, and these steps should say which one is meant.
+
+11. <del><strong>Test step 3 skips <code>--ids-only</code> (line 2883).</strong> The rule "with and without <code>--ids-only</code>" (line 2544) is not checked for a failure to launch Git. Step 3 runs only <code>git-hints --all</code> and normal <code>explain</code>, though <code>--ids-only</code> runs would be easy to add.</del>
+
+Total findings: 11
 
 #### Implementation review rounds
 
-(Table showing implementation review rounds)
+Claude Fable 5.2 assisted the implementation, as recorded in the three commit
+trailers. Both implementation-review rounds 1 and 2 used GPT-6-Luna to review
+the failure-reporting tests and `stash-entries` implementation against
+`spec.md`. Claude Opus 5.5 (`claude-opus-5-5`, in Claude Code) implemented
+`stale-fetch`, the fixes, and the CodeChat markup, and reviewed them in rounds
+3–8 with the prompt shown under Last implementation review; rounds 7 and 8
+rechecked the code after specification rounds 8–10 changed it.
+
+| Round | Findings | Main changes made |
+| ----- | -------- | ----------------- |
+| 1     | 0        | Verified partial results and error reporting for inspection failures, reactive inspection failures, `--ids-only`, and Git launch failures; checked `stash-entries` output, precedence, suppression, truncation, and commands. |
+| 2     | 0        | No further changes; the full suite, Ruff, and ty passed. |
+| 3     | 4        | Made each inspection failure one prefixed line, reported operating-system errors of operation detection as file inspection failures instead of a traceback, and compared the `--ids-only` failure lines with those of the normal run in the test. |
+| 4     | 1        | Split `git rev-parse` output only at newlines in `Repo.git_paths` and `stale-fetch`, so paths with other line separators no longer make inspection fail. |
+| 5     | 1        | Added a fragment over the test helpers used only by `test_stale_fetch` and listed it in the stale-fetch gather heading. |
+| 6     | 0        | No changes. |
+| 7     | 2        | Installed the no-op handler for the interrupt and quit signals before Git is launched, and let step 2 of the failure-reporting test accept any later `git-hints: ` line naming `--diff-filter=U` and `128`. |
+| 8     | 0        | No further changes; all 65 tests, Ruff, and ty passed. |
 
 #### Last implementation review
 
-(LLM and prompt used)
+Prompting Claude Opus 5.5 (`claude-opus-5-5`, in Claude Code) with the
+following prompt produced the round 8 output below.
 
-(LLM output, possibly with strikethrough)
+```text
+Review the implementation in src/git_hints/ and tests/ of these parts of spec.md: the "Keep track of stash entries?" and "Fetch to see the newest remote commits?" hint sections with their complete test cases, the failure reporting of "Language and libraries" with its test case in "Testing", and the "CodeChat markup" rules as applied to stash-entries, unpushed-branches, and stale-fetch. Check conditions, suppression, output text, ordering, error handling, edge cases, and whether each test implements every step of its test case. Do not review other parts. Do not modify files. Report only relevant, actionable findings as a numbered list, followed by the total number of findings.
+```
+
+```text
+I found no relevant, actionable findings in the parts I was asked to review.
+
+What I checked, in <repo>:
+
+- **stash-entries** (src/git_hints/proactive.py, `stash_entries`):
+  - It is hidden during a merge, rebase, cherry-pick, revert, `git am` session or bisect, and while unmerged paths exist.
+  - `git stash list` must exit 0, and output is split on "\n" only.
+  - The count text reads "1 entry" / "N entries". Up to five entries are listed, each in its own code span, joined with "; " and followed by "; and N more".
+  - The hint text, Git stage sentence, four commands with Warning on drop and pop, safety, priority and documentation links match the spec.
+  - `stash-entries` is last in `PRECEDENCE` in hint.py.
+- **stale-fetch** (`stale_fetch`):
+  - It is skipped after a successful `--fetch`, during operations or unmerged paths, with no remote, or when `for-each-ref --count=1 refs/remotes/` prints nothing.
+  - It reads this worktree's FETCH_HEAD and the common directory's FETCH_HEAD with the exact rev-parse command, uses the newest existing file, and is skipped when neither exists.
+  - An empty file gives "the last fetch failed or fetched nothing". Otherwise the hint needs an age over 24 hours; whole days are rounded down, and a future time counts as recent.
+  - A missing file is expected; any other OS error is reported with the file named.
+  - The hint text and command match the spec.
+- **Failure reporting** (git.py, proactive.py `show_hints`/`collect_hints`, reactive.py `explain`/`save_counts`):
+  - Each failed command is reported once with its arguments, exit code and Git's message.
+  - A failure in the context-line or remote-choosing commands prints nothing on stdout.
+  - "No hints.", "Git exited with code <n>." and "No error detected." are kept after a failure.
+  - Exit code is 1 on failure, and signals are mapped to 128+N.
+  - SIGINT and SIGQUIT are caught by a do-nothing handler installed before Git is launched.
+  - A failed state-file write is reported with the file named; a missing or unreadable state file is expected.
+- **Tests**:
+  - `test_stash_entries` (tests/test_changes.py) implements steps 1-7.
+  - `test_stale_fetch` (tests/test_remote.py) implements steps 1-10.
+  - `test_failure_reporting` (tests/test_state.py) implements steps 1-8.
+  - Cleanup is in try/finally where the spec asks for it, and checks use `--all --ids-only` or `--all` as the Testing rules require.
+  - All four relevant tests pass, and so does the full suite (65 tests, Git 2.56.0).
+- **CodeChat markup**:
+  - The fragment IDs in the code and tests match the spec's gather headings for all three hints, and each is `cc-` plus 10 characters.
+  - Counting doc and code blocks, every `following` value covers its whole function or test: 5 for `stash_entries`, 1 for `unpushed_branches`, 5 for `stale_fetch`, 5 for `test_stash_entries`, 1 for `test_unpushed_branches`, 7 for `test_stale_fetch`, and 3 for the stale-fetch-only test helpers.
+  - The shared helper `clone_and_push` has no fragment, as the spec requires.
+  - No markers or gather headings appear in hint text.
+
+Total: 0 findings.
+```
 
 ### Zhassulan Kainazarov
 

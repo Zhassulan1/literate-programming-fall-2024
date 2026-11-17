@@ -23,14 +23,23 @@ import re
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Literal
+from pathlib import Path
+from typing import Literal, TypeVar
 
 # ### Local
 from . import docs
-from .git import DIFF, GitLaunchError, InspectionError, Repo, split_nul
+from .git import (
+    DIFF,
+    GitLaunchError,
+    InspectionError,
+    Repo,
+    file_status,
+    split_nul,
+)
 from .hint import (
     Command,
     Hint,
@@ -1069,7 +1078,11 @@ def stash_entries(ctx: Context) -> Hint | None:
     ):
         return None
     # One line per entry, newest first; no output when there is no stash.
-    entries = repo.check("stash", "list").stdout.splitlines()
+    # Git ends each entry with "\n" only, so a message containing other line
+    # breaks, such as a form feed, stays one entry.
+    entries = repo.check("stash", "list").stdout.split("\n")
+    if entries[-1] == "":
+        entries.pop()
     if not entries:
         return None
     count = "1 entry" if len(entries) == 1 else f"{len(entries)} entries"
@@ -1276,6 +1289,97 @@ def unpushed_branches(ctx: Context) -> Hint | None:
     )
 
 
+# Fetch age
+# ---------
+#
+# Hints about remote commits rely on remote-tracking branches, which are only
+# as new as the last fetch. `FETCH_HEAD` records each fetch attempt, so its
+# modification time tells how old that information is; a failed fetch, or one
+# that fetched nothing, leaves it empty. The hint is hidden as a whole during
+# an operation, a `git am` session, or a bisect, and while conflicts remain,
+# like `stash-entries`.
+# <fragment id="cc-75esxee47z" following="5"></fragment>
+STALE_FETCH_SECONDS = 24 * 60 * 60
+
+
+def stale_fetch(ctx: Context) -> Hint | None:
+    if ctx.fetched:
+        return None
+    repo = ctx.repo
+    operations = repo.operations
+    if (
+        operations.paused
+        or operations.am
+        or operations.bisect
+        or repo.unmerged_paths
+    ):
+        return None
+    if not repo.remotes:
+        return None
+    if not repo.check("for-each-ref", "--count=1", "refs/remotes/").stdout:
+        return None
+
+    # Each worktree has its own `FETCH_HEAD`, while remote-tracking branches
+    # are shared, so this worktree's file and the main worktree's both count.
+    # In the main worktree they are the same file. Split Git's output only on
+    # newlines, since paths may contain other line separators.
+    args = (
+        "rev-parse",
+        "--path-format=absolute",
+        "--git-path",
+        "FETCH_HEAD",
+        "--git-common-dir",
+    )
+    result = repo.check(*args)
+    lines = result.stdout.removesuffix("\n").split("\n")
+    if len(lines) != 2:
+        raise InspectionError(result, "unexpected `git rev-parse` output")
+    newest: os.stat_result | None = None
+    for path in (Path(lines[0]), Path(lines[1]) / "FETCH_HEAD"):
+        status = file_status(path)
+        if status is None:
+            continue
+        if newest is None or status.st_mtime > newest.st_mtime:
+            newest = status
+    if newest is None:
+        return None
+    if newest.st_size == 0:
+        age = "the last fetch failed or fetched nothing"
+    else:
+        # A modification time in the future counts as recent.
+        seconds = time.time() - newest.st_mtime
+        if seconds <= STALE_FETCH_SECONDS:
+            return None
+        days = int(seconds // STALE_FETCH_SECONDS)
+        age = f"the last fetch was {plural(days, 'day')} ago"
+    return Hint(
+        id="stale-fetch",
+        priority=Priority.INFORMATIONAL,
+        text=(
+            f"Your local view of the remote may be out of date: {age}. Hints "
+            "about remote commits, such as `behind`, use what Git learned at "
+            "the last "
+            f"[fetch]({docs.GIT_FETCH_DESCRIPTION.url} "
+            '"Downloads remote commits and updates remote-tracking branches '
+            'and FETCH_HEAD"). Do you want to fetch before you start editing?'
+        ),
+        stage=(
+            "Your local repository keeps remote-tracking branches, which "
+            "record the remote repository's branches as of your last fetch, "
+            "or of your last push for the branches you pushed."
+        ),
+        commands=(
+            Command(
+                "`git fetch --all`",
+                "Git updates the remote-tracking branches of every remote and "
+                "does not change your branches, staging area, or working "
+                "directory; afterward, `git status` compares your branch with "
+                "the updated upstream.",
+            ),
+        ),
+    )
+
+
 # Configuration
 # -------------
 # <fragment id="cc-t-jVTDbie2" following="3"></fragment>
@@ -1345,6 +1449,7 @@ CHECKS: list[Callable[[Context], Hint | None]] = [
     tracked_but_ignored,
     stash_entries,
     unpushed_branches,
+    stale_fetch,
     commit_identity,
 ]
 
@@ -1366,11 +1471,22 @@ def collect_hints(ctx: Context) -> tuple[list[Hint], list[InspectionError]]:
     with ThreadPoolExecutor(max_workers=len(CHECKS)) as executor:
         outcomes = list(executor.map(run_check, CHECKS))
     hints = [outcome for outcome in outcomes if isinstance(outcome, Hint)]
-    errors: dict[str, InspectionError] = {}
-    for outcome in outcomes:
-        if isinstance(outcome, InspectionError):
-            errors.setdefault(str(outcome), outcome)
-    return hints, list(errors.values())
+    errors = distinct_errors(
+        outcome for outcome in outcomes if isinstance(outcome, InspectionError)
+    )
+    return hints, errors
+
+
+ErrorT = TypeVar("ErrorT", bound=Exception)
+
+
+# Keep the first of the errors with the same message, in order: checks that
+# share a failed command each raise the same error for it.
+def distinct_errors(errors: Iterable[ErrorT]) -> list[ErrorT]:
+    unique: dict[str, ErrorT] = {}
+    for error in errors:
+        unique.setdefault(str(error), error)
+    return list(unique.values())
 
 
 # Fetching

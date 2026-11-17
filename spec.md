@@ -50,9 +50,9 @@ CLI commands
       `diverged` hints "as of last fetch."
 2. **`git-hints explain -- <git command>`**: execute the supplied Git command,
    capture its exit code and standard error, and select reactive hints from the
-   resulting error. Return the same exit code as Git. The arguments must begin
-   with `git`; otherwise print an error to standard error, run nothing, and
-   exit 2.
+   resulting error. Return the same exit code as Git, except for the failures
+   that Language and libraries describes. The arguments must begin with `git`;
+   otherwise print an error to standard error, run nothing, and exit 2.
 
    * A `--` separator before the Git command is recommended to make argument
      boundaries unambiguous.
@@ -78,8 +78,8 @@ CLI commands
 
    * Under `--ids-only`, standard output contains only triggered reactive hint
      IDs, one per line, and no exit-code message. Captured standard error
-     remains on standard error; the process still returns Git's exit code. With
-     `--all`, the reactive output remains complete.
+     remains on standard error; the exit code is the same as without
+     `--ids-only`. With `--all`, the reactive output remains complete.
 
    * Configure Typer to accept extra arguments and ignore unknown options
      (`allow_extra_args=True`, `ignore_unknown_options=True`), so Git receives
@@ -231,11 +231,12 @@ Hint structure
    that suggests `Caution: git pull --rebase` has `safety: caution` even if its
    priority class is `workflow`.
 
-7. **Operation-in-progress protection**: before recommending a workflow command,
-   determine whether an operation is in progress by checking unmerged index
-   entries and applicable Git paths returned by `git rev-parse --git-path`
-   (`MERGE_HEAD`, `rebase-merge`, `rebase-apply`, `CHERRY_PICK_HEAD`,
-   `REVERT_HEAD`, and `BISECT_START`). If any such state is detected, show an
+7. **Operation-in-progress protection**: before recommending a workflow command
+   that an operation in progress could make fail or interfere with, determine
+   whether an operation is in progress by checking unmerged index entries and
+   applicable Git paths returned by `git rev-parse --git-path` (`MERGE_HEAD`,
+   `rebase-merge`, `rebase-apply`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, and
+   `BISECT_START`). If any such state is detected, show an
    appropriate proactive `error/blocked` hint for an unresolved or stopped
    operation, and suppress workflow suggestions whose commands would fail or
    interfere until the operation is resolved. In particular, `merge-conflicts`
@@ -2084,6 +2085,9 @@ of Push your other local branches?</h4>
       and that its output has an `unstaged-changes` block but no `stale-fetch`
       block. Skip this test where a symbolic link cannot be created.
 
+<h4 id="cc-lpx36a973z" data-gather="cc-75esxee47z cc-p96xv0fgyp cc-ki8lk258rw">
+Implementation of Fetch to see the newest remote commits?</h4>
+
 `git-hints explain -- git <command> [<args>...]`
 ------------------------------------------------
 
@@ -2444,8 +2448,10 @@ of Stash local changes?</h4>
 
   Key each record by the full branch reference returned by `git symbolic-ref
   --quiet HEAD`. Store the failure count and the current `HEAD` commit ID. If
-  the state file is missing or unreadable, initialize the count to zero. Write
-  updates atomically using a temporary file followed by a rename.
+  the state file is missing or unreadable, because it cannot be read or does
+  not hold valid records, initialize the count to zero. Write updates
+  atomically using a temporary file followed by a rename, and remove the
+  temporary file when the write fails.
 
   Count only the following failures from commands executed through `git-hints
   explain`:
@@ -2458,10 +2464,11 @@ of Stash local changes?</h4>
   requiring complete lines to match.
 
   Do not count authentication failures, network failures, missing upstream
-  branches, dirty working trees, or unresolved conflicts. Do not count a failed
-  `git pull --rebase`. Do not recommend rebasing while a merge or rebase is in
-  progress. An upstream branch is required before counting an integration
-  failure toward a rebase recommendation.
+  branches, or dirty working trees. Do not count any failure while the index
+  has unresolved entries (`git diff --name-only --diff-filter=U` returns
+  paths). Do not count a failed `git pull --rebase`. Do not recommend rebasing
+  while a merge or rebase is in progress. An upstream branch is required before
+  counting an integration failure toward a rebase recommendation.
 
   Skip failure counting outside a working tree, in detached HEAD, or when the
   executed Git command uses repository-redirection options such as `-C`,
@@ -2474,7 +2481,9 @@ of Stash local changes?</h4>
   * The hint is displayed.
   * The stored `HEAD` commit ID differs from the current `HEAD`.
 
-  Other commands and failures that do not qualify leave the count unchanged.
+  Other commands and failures that do not qualify leave the count unchanged. An
+  unexpected inspection failure while counting leaves the state file unchanged
+  and does not display this hint.
 
 * Test case: Suggesting rebase after repeated failures.
 
@@ -2667,26 +2676,53 @@ For both modes, pass arguments separately with `shell=False` and `check=False`.
 Interpret `returncode` according to each command's documented meaning; expected
 nonzero codes are not automatically application errors. Report unexpected
 failures separately and suppress hints that depend on the failed commands. If
-Git ran, return Git's exit code, unless an unexpected inspection failure occurs.
-If Git cannot be launched, report that failure instead of inventing a Git exit
-code or repository condition.
+Git cannot be launched, report that failure instead of inventing a Git exit code
+or repository condition.
 
 Plain `git-hints` exits 0, whether or not any hint is triggered, and `git-hints
 explain` returns Git's exit code, except for the usage errors of CLI commands,
-which exit 2, and for the failures of the next paragraph.
+which exit 2, and for the failures of the next paragraph. When Git is ended by
+signal N, which `subprocess` reports as `returncode` -N, Git's exit code is
+128 + N, as in a POSIX shell, both in `Git exited with code <n>.` and as the
+exit code of `git-hints explain`. While the supplied command runs, `git-hints
+explain` must ignore the interrupt and quit signals, such as `SIGINT` from
+Ctrl+C, which the terminal also sends to Git, so that Git alone decides how
+the command ends and its exit code and captured standard error are still
+reported. Git must keep the default handling of these signals: a signal that
+is ignored when Git is launched stays ignored in Git, so ignore them only
+after launching it, or catch them with a handler that does nothing.
 
-Report an unexpected inspection failure, once for each failed command however
-many hints use it, and a failure to launch Git, on standard error as a message
-starting with `git-hints: `, and exit with code 1; for `git-hints explain`,
-these messages follow Git's captured standard error, and this code replaces
-Git's exit code. This applies to both modes, with and without `--ids-only`. An
-operating-system error with a file that inspection reads directly rather than
-through Git, such as reading the modification time of `FETCH_HEAD` for
-`stale-fetch`, is also an unexpected inspection failure, reported once for each
-file; name the file in its message. After an unexpected inspection failure,
+Report an unexpected inspection failure and a failure to launch Git on
+standard error as a message starting with `git-hints: `, and exit with code 1;
+for `git-hints explain`, these messages follow Git's captured standard error,
+and this code replaces Git's exit code. This applies to both modes, with and
+without `--ids-only`. Report each failed inspection command once, however many
+hints and other parts of inspection, such as the integration-failure counter,
+use it; when it exited with an unexpected code, name the command with its
+arguments, that code, and the command's error message, if any, in the message.
+Inspection output that shows an invalid or unreadable repository state, which
+`detached-head` and `no-commits` ask to report separately, is also an
+unexpected inspection failure; describe the problem in its message. An
+operating-system error with a file that inspection reads or writes directly
+rather than through Git, such as writing the integration-failure state file or
+reading the modification time of `FETCH_HEAD` for `stale-fetch`, is also an
+unexpected inspection failure, reported once for each file; name the file in
+its message. A missing `FETCH_HEAD` and a missing or unreadable state file,
+including one whose reading fails with an operating-system error, remain
+expected, as their hints describe. After an unexpected inspection failure,
 still print the output that does not depend on the failed commands or files.
-When Git cannot be launched, report it once, stop, and print nothing on
-standard output.
+In normal output, this includes `Git exited with code <n>.` and `No error
+detected.` as `git-hints explain` prints them, and `No hints.` when no hint
+triggers in plain `git-hints` or after a failed command. All output of plain
+`git-hints` depends on the commands of the repository context line (Hint
+structure, item 1): when one of them fails unexpectedly, report it, stop
+inspecting, and print nothing on standard output, with or without `--ids-only`.
+The same applies under `--fetch` to the commands that choose the remote, which
+run before that line. When Git cannot be launched, report it once, stop, and
+print nothing on standard output. For `git-hints explain`, this applies to the
+supplied command; an inspection command that cannot be launched after it ran is
+an unexpected inspection failure, reported once however many commands cannot be
+launched.
 
 Decode Git output as UTF-8, replacing invalid byte sequences, not with the
 locale default. When a path list is parsed, use `-z` or `-c
@@ -3009,27 +3045,80 @@ Test case for the failure reporting of Language and libraries, in
    first line of its standard output is `Branch: main`, that its output has a
    block for `no-upstream-branch`, which does not read the index, and none for
    `unstaged-changes`, which does, and that at least one line of its standard
-   error starts with `git-hints: `. Run `git-hints --all --ids-only` and verify
-   that it exits with code 1, that its standard output lists
+   error starts with `git-hints: `, that no two such lines are the same, and
+   that each of them contains `128`. Run `git-hints --all --ids-only` and
+   verify that it exits with code 1, that its standard output lists
    `no-upstream-branch` but not `unstaged-changes` and has no line starting
-   with `Branch:`, and that at least one line of its standard error starts with
-   `git-hints: `.
+   with `Branch:`, and that its standard error has the same `git-hints: `
+   lines, in any order.
 2. In the same repository, run `git-hints explain -- git status --short`. Git
    itself exits with code 128, and the `merge-conflicts` check then fails to
    inspect the index with `git diff --name-only --diff-filter=U -z`. Verify
    that `git-hints` exits with code 1, that its standard output contains the
    line `Git exited with code 128.`, and that its standard error contains a
    line starting with `fatal:`, which is Git's own message, followed later by a
-   line starting with `git-hints: `. Run `git-hints --ids-only explain -- git
-   status --short` and verify that it exits with code 1, that its standard
-   output is empty, and that its standard error contains both lines again.
+   line starting with `git-hints: ` that contains `--diff-filter=U` and `128`.
+   Run `git-hints --ids-only explain -- git status --short` and verify that it
+   exits with code 1, that its standard output is empty, and that its standard
+   error contains both lines again.
 3. Create an empty directory. In the same repository, run `git-hints --all` and
    then `git-hints explain -- git status`, each with `PATH` set to that
-   directory, so that Git cannot be launched. Start `git-hints` through the
-   absolute path of the Python interpreter, because a `git-hints` script could
-   not be found through that `PATH` either. For each run, verify that it exits
-   with code 1, that its standard output is empty, and that its standard error
-   is one line starting with `git-hints: `.
+   directory, so that Git cannot be launched. Run `git-hints` as
+   `[sys.executable, "-m", "git_hints", ...]`, because a `git-hints` script
+   could not be found through that `PATH` either. For each run, verify that it
+   exits with code 1, that its standard output is empty, and that its standard
+   error starts with `git-hints: ` and has no other line starting with
+   `git-hints: `.
+4. Create a bare repository and a repository with one commit, add the bare
+   repository as `origin`, run `git push -u origin main`, then `git commit
+   --amend -m <any-message>`, and replace the contents of the index with
+   `garbage` as in step 1. Run `git-hints explain -- git push`: Git rejects the
+   push as a non-fast-forward, and both the integration-failure counter, which
+   checks for unresolved conflicts, and the `merge-conflicts` check then fail
+   to read the index. Verify that `git-hints` exits with code 1, that its
+   output has a block for `push-rejected-non-fast-forward`, that at least one
+   line of its standard error starts with `git-hints: ` and no two such lines
+   are the same, and that no file exists at the path printed by `git rev-parse
+   --path-format=absolute --git-path git-hints/integration-failures.json`. Run
+   `git-hints --ids-only explain -- git push` and verify the same exit code,
+   failure lines, and state file, and that its standard output lists
+   `push-rejected-non-fast-forward`.
+5. Set up a bare repository and a repository with one commit as in step 4, but
+   leave the index intact, and create a directory at the path printed by `git
+   rev-parse --path-format=absolute --git-path
+   git-hints/integration-failures.json`, so that the integration-failure state
+   file cannot be written. It cannot be read either, which makes it unreadable,
+   so the failure reported is the write. Run `git-hints explain -- git push`
+   and verify that it exits with code 1, that its output has a block for
+   `push-rejected-non-fast-forward`, and that its standard error has exactly
+   one line starting with `git-hints: `, which contains
+   `integration-failures.json`.
+6. On systems other than Windows, in the repository of step 5, run `git-hints
+   explain -- git -c 'alias.die=!kill -TERM $PPID' die`, whose shell alias ends
+   the Git process that runs it with `SIGTERM`. Verify that it exits with code
+   143 and that its standard output contains the line `Git exited with code
+   143.` Run `git-hints explain -- git -c 'alias.int=!echo stopped >&2; kill
+   -INT 0' int` in a new session (`start_new_session=True`), so that its shell
+   alias sends `SIGINT` to Git and `git-hints`, as Ctrl+C does. Verify that it
+   exits with code 130, that its standard output contains the line `Git exited
+   with code 130.`, and that its standard error contains `stopped`.
+7. Create a repository with one commit and run `git config
+   core.repositoryformatversion 2`. Verify that `git rev-parse
+   --is-inside-work-tree` exits with code 128 and that its standard error does
+   not contain `not a git repository`. Run `git-hints --all` and `git-hints
+   --all --ids-only`, and for each run verify that it exits with code 1, that
+   its standard output is empty, and that its standard error has exactly one
+   line starting with `git-hints: `, which contains `128`.
+8. On systems other than Windows, when not running as root, set up a bare
+   repository and a repository with one commit as in step 4, leaving the index
+   intact. Run `git-hints explain -- git push`, which records a failure in the
+   state file, and remove write permission from the directory that holds it.
+   Run `git-hints explain -- git push --force`, whose success resets the count,
+   so that writing the state file fails. Verify that it exits with code 1,
+   that its standard output contains the lines `Git exited with code 0.` and
+   `No error detected.` and not `No hints.`, and that its standard error has
+   exactly one line starting with `git-hints: `, which contains
+   `integration-failures.json`. Restore the permission afterwards.
 
 Development strategy
 ====================

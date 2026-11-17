@@ -22,6 +22,7 @@
 # ### Standard library
 import os
 import posixpath
+import stat
 import subprocess
 import threading
 from collections.abc import Collection, Sequence
@@ -62,11 +63,40 @@ class InspectionError(Exception):
         message: str | None = None,
     ) -> None:
         command = " ".join(["git", *result.args])
-        detail = message or result.stderr.strip() or "no error message"
+        # Join the lines of Git's message, so that each reported failure is a
+        # single line and can't be mistaken for Git's own output.
+        lines = [line.strip() for line in result.stderr.splitlines()]
+        detail = message or "; ".join(filter(None, lines)) or "no error message"
         super().__init__(
             f"`{command}` exited with code {result.returncode}: {detail}"
         )
         self.result = result
+
+
+# Inspection could not read or write a file directly, rather than through Git.
+class FileInspectionError(InspectionError):
+    def __init__(
+        self,
+        # What inspection tried to do, such as "write".
+        action: str,
+        # The file concerned.
+        path: Path,
+        error: OSError,
+    ) -> None:
+        Exception.__init__(
+            self, f"Could not {action} `{path}`: {error.strerror or error}"
+        )
+
+
+# Return the status of a file that inspection reads directly, or `None` when
+# it doesn't exist; any other operating-system error is an inspection failure.
+def file_status(path: Path) -> os.stat_result | None:
+    try:
+        return path.stat()
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    except OSError as error:
+        raise FileInspectionError("read", path, error) from error
 
 
 # Git writes paths as raw bytes; decode them as UTF-8 regardless of the
@@ -248,14 +278,16 @@ class Repo:
         return result.stdout.splitlines() if result.returncode == 0 else []
 
     # Return absolute paths for Git-internal files, which may live outside
-    # `.git/` in linked worktrees or when the Git directory is elsewhere.
+    # `.git/` in linked worktrees or when the Git directory is elsewhere. Split
+    # only on newlines, since paths may contain other line separators.
     def git_paths(self, *names: str) -> list[Path]:
         args = ["rev-parse", "--path-format=absolute"]
         for name in names:
             args += ["--git-path", name]
-        lines = self.check(*args).stdout.splitlines()
+        result = self.check(*args)
+        lines = result.stdout.removesuffix("\n").split("\n")
         if len(lines) != len(names):
-            raise InspectionError(self.run(*args))
+            raise InspectionError(result, "unexpected `git rev-parse` output")
         return [Path(line) for line in lines]
 
     # Return true when a ref (such as `MERGE_HEAD`) resolves.
@@ -367,12 +399,21 @@ class Repo:
         rebase_merge, rebase_apply, bisect_start = self.git_paths(
             "rebase-merge", "rebase-apply", "BISECT_START"
         )
-        am = rebase_apply.is_dir() and (rebase_apply / "applying").exists()
+
+        def is_dir(path: Path) -> bool:
+            status = file_status(path)
+            return status is not None and stat.S_ISDIR(status.st_mode)
+
+        in_rebase_apply = is_dir(rebase_apply)
+        am = (
+            in_rebase_apply
+            and file_status(rebase_apply / "applying") is not None
+        )
         return Operations(
             merge=self.ref_exists("MERGE_HEAD"),
-            rebase=rebase_merge.is_dir() or (rebase_apply.is_dir() and not am),
+            rebase=is_dir(rebase_merge) or (in_rebase_apply and not am),
             am=am,
             cherry_pick=self.ref_exists("CHERRY_PICK_HEAD"),
             revert=self.ref_exists("REVERT_HEAD"),
-            bisect=bisect_start.exists(),
+            bisect=file_status(bisect_start) is not None,
         )

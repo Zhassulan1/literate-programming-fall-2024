@@ -19,19 +19,27 @@
 # -------
 #
 # ### Standard library
+import contextlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Generator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 # ### Local
 from . import docs
-from .git import GitLaunchError, InspectionError, Repo, decode
+from .git import (
+    FileInspectionError,
+    GitLaunchError,
+    InspectionError,
+    Repo,
+    decode,
+)
 from .hint import (
     Command,
     Hint,
@@ -44,7 +52,7 @@ from .hint import (
     sort_hints,
     summarize,
 )
-from .proactive import Context, merge_conflicts
+from .proactive import Context, distinct_errors, merge_conflicts
 
 # Parsing the Git command
 # -----------------------
@@ -586,15 +594,23 @@ def load_counts(path: Path) -> dict[str, dict[str, object]]:
 
 
 # Write the counts atomically, so an interrupted write can't leave a partial
-# file.
+# file. A failed write leaves the file unchanged and is an inspection failure.
 # <fragment id="cc-KtDvcgEH3C" following="1"></fragment>
 def save_counts(path: Path, counts: dict[str, dict[str, object]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        "w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False
-    ) as temporary:
-        json.dump(counts, temporary, indent=2)
-    os.replace(temporary.name, path)
+    temporary_name: str | None = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False
+        ) as temporary:
+            temporary_name = temporary.name
+            json.dump(counts, temporary, indent=2)
+        os.replace(temporary_name, path)
+    except OSError as error:
+        if temporary_name is not None:
+            with contextlib.suppress(OSError):
+                Path(temporary_name).unlink(missing_ok=True)
+        raise FileInspectionError("write", path, error) from error
 
 
 # Record the outcome of a push or pull for the current branch. Return true
@@ -663,6 +679,29 @@ def emit_stderr(data: bytes) -> None:
         buffer.flush()
 
 
+# Do nothing when a signal arrives.
+def ignore_signal(signum: int, frame: object) -> None:
+    pass
+
+
+# While Git runs, catch the interrupt and quit signals of Ctrl+C and Ctrl+\,
+# which the terminal sends to Git and to `git-hints` alike, with a handler that
+# does nothing, so that Git decides how to end and its exit code and standard
+# error are still reported. The handler is installed before Git is launched,
+# so no signal can end `git-hints` in between, and Git still keeps the default
+# handling, because launching a program resets caught signals to it.
+@contextlib.contextmanager
+def signals_caught() -> Generator[None]:
+    names = ("SIGINT", "SIGQUIT")
+    signums = [getattr(signal, name) for name in names if hasattr(signal, name)]
+    previous = [signal.signal(signum, ignore_signal) for signum in signums]
+    try:
+        yield
+    finally:
+        for signum, handler in zip(signums, previous, strict=True):
+            signal.signal(signum, handler)
+
+
 # Run a Git command, then explain its failure. Return Git's exit code, or 1
 # when Git can't be launched or inspection fails unexpectedly.
 def explain(
@@ -672,20 +711,24 @@ def explain(
     ids_only: bool,
 ) -> int:
     command = parse_command(argv)
-    try:
-        completed = subprocess.run(
-            list(argv),
-            stdout=subprocess.DEVNULL if ids_only else None,
-            stderr=subprocess.PIPE,
-            shell=False,
-            check=False,
-        )
-    except OSError as error:
-        print(f"git-hints: Could not launch Git: {error}", file=sys.stderr)
-        return 1
-    emit_stderr(completed.stderr)
-    stderr = decode(completed.stderr)
-    returncode = completed.returncode
+    with signals_caught():
+        try:
+            process = subprocess.Popen(
+                list(argv),
+                stdout=subprocess.DEVNULL if ids_only else None,
+                stderr=subprocess.PIPE,
+                shell=False,
+            )
+        except OSError as error:
+            print(f"git-hints: Could not launch Git: {error}", file=sys.stderr)
+            return 1
+        _, captured = process.communicate()
+    emit_stderr(captured)
+    stderr = decode(captured)
+    returncode = process.returncode
+    # A negative code means that signal ended Git; report it as a shell does.
+    if returncode < 0:
+        returncode = 128 - returncode
 
     errors: list[Exception] = []
     repo: Repo | None = None
@@ -725,6 +768,8 @@ def explain(
             lines.append("No hints.")
     if lines:
         print("\n".join(lines))
-    for error in errors:
+    # The failure count and the checks may share a failed command; report it
+    # once.
+    for error in distinct_errors(errors):
         print(f"git-hints: {error}", file=sys.stderr)
     return 1 if errors else returncode

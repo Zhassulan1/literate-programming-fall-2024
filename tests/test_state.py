@@ -6,6 +6,7 @@
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -204,7 +205,17 @@ def reported_failures(stderr: str) -> list[str]:
 
 
 def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
-    repo, empty = make_temps(tmp_path_factory, 2)
+    (
+        repo,
+        empty,
+        local,
+        remote,
+        pusher,
+        pusher_remote,
+        future,
+        resetter,
+        resetter_remote,
+    ) = make_temps(tmp_path_factory, 9)
     config_user("user1", "user1@example.com")
     make_repo(
         repo,
@@ -230,7 +241,12 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
     found = blocks(result.stdout)
     assert "no-upstream-branch" in found
     assert "unstaged-changes" not in found
-    assert reported_failures(result.stderr)
+    # Each failed command is reported once, with its exit code, however many
+    # hints use it.
+    failures = reported_failures(result.stderr)
+    assert failures
+    assert len(set(failures)) == len(failures)
+    assert all("128" in line for line in failures)
 
     result = run_hints(repo, "--all", "--ids-only")
     assert result.returncode == 1
@@ -238,7 +254,7 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "no-upstream-branch" in ids
     assert "unstaged-changes" not in ids
     assert not any(line.startswith("Branch:") for line in ids)
-    assert reported_failures(result.stderr)
+    assert sorted(reported_failures(result.stderr)) == sorted(failures)
 
     # Git's own message comes first, then the failed `merge-conflicts`
     # inspection.
@@ -260,7 +276,10 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
             i for i, line in enumerate(lines) if line.startswith("git-hints: ")
         ]
         assert fatal and failed
-        assert fatal[0] < failed[0]
+        assert any(
+            i > fatal[0] and "--diff-filter=U" in lines[i] and "128" in lines[i]
+            for i in failed
+        )
 
     # With no `git` executable on `PATH`, Git cannot be launched.
     env = dict(os.environ, PATH=str(empty))
@@ -268,8 +287,164 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
         result = run_hints(repo, *args, env=env)
         assert result.returncode == 1
         assert result.stdout == ""
-        assert result.stderr.splitlines() == reported_failures(result.stderr)
-        assert len(result.stderr.splitlines()) == 1
+        assert result.stderr.startswith("git-hints: ")
+        assert len(reported_failures(result.stderr)) == 1
+
+    # The integration-failure counter and the `merge-conflicts` check both
+    # fail to read the index; each failed command is reported once, and the
+    # counter's state file is left unchanged.
+    make_repo(remote, [["git", "init", "--bare", "-b", "main"]])
+    make_repo(
+        local,
+        [
+            ["git", "init", "-b", "main"],
+            ["git", "remote", "add", "origin", str(remote)],
+            write(local / "foo.txt", "base"),
+            ["git", "add", "foo.txt"],
+            ["git", "commit", "-m", "Add foo."],
+            ["git", "push", "-u", "origin", "main"],
+            ["git", "commit", "--amend", "-m", "Add foo again."],
+        ],
+    )
+    index, counts = git_paths(
+        local, "index", "git-hints/integration-failures.json"
+    )
+    index.write_bytes(b"garbage")
+    first_failures: list[str] = []
+    for options in ([], ["--ids-only"]):
+        result = run_hints(local, *options, "explain", "--", "git", "push")
+        assert result.returncode == 1
+        if options:
+            found = result.stdout.splitlines()
+        else:
+            found = list(blocks(result.stdout))
+        assert "push-rejected-non-fast-forward" in found
+        failures = reported_failures(result.stderr)
+        assert failures
+        assert len(set(failures)) == len(failures)
+        if options:
+            assert sorted(failures) == sorted(first_failures)
+        else:
+            first_failures = failures
+        assert not counts.exists()
+
+    # A state file that cannot be written is reported, naming the file.
+    make_repo(pusher_remote, [["git", "init", "--bare", "-b", "main"]])
+    make_repo(
+        pusher,
+        [
+            ["git", "init", "-b", "main"],
+            ["git", "remote", "add", "origin", str(pusher_remote)],
+            write(pusher / "foo.txt", "base"),
+            ["git", "add", "foo.txt"],
+            ["git", "commit", "-m", "Add foo."],
+            ["git", "push", "-u", "origin", "main"],
+            ["git", "commit", "--amend", "-m", "Add foo again."],
+        ],
+    )
+    (state,) = git_paths(pusher, "git-hints/integration-failures.json")
+    state.mkdir(parents=True)
+    result = run_hints(pusher, "explain", "--", "git", "push")
+    assert result.returncode == 1
+    assert "push-rejected-non-fast-forward" in blocks(result.stdout)
+    failures = reported_failures(result.stderr)
+    assert len(failures) == 1
+    assert "integration-failures.json" in failures[0]
+
+    # Git ended by a signal has the exit code a shell would report.
+    if os.name != "nt":
+        result = run_hints(
+            pusher,
+            "explain",
+            "--",
+            "git",
+            "-c",
+            "alias.die=!kill -TERM $PPID",
+            "die",
+        )
+        assert result.returncode == 143
+        assert "Git exited with code 143." in result.stdout.splitlines()
+
+        # In a session of its own, `kill -INT 0` reaches Git and `git-hints`
+        # as Ctrl+C would, but not the test runner.
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "git_hints",
+                "explain",
+                "--",
+                "git",
+                "-c",
+                "alias.int=!echo stopped >&2; kill -INT 0",
+                "int",
+            ],
+            cwd=pusher,
+            check=False,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            start_new_session=True,
+        )
+        assert result.returncode == 130
+        assert "Git exited with code 130." in result.stdout.splitlines()
+        assert "stopped" in result.stderr
+
+    # A failed repository context command is not `not-a-repo`; nothing is
+    # printed on standard output.
+    make_repo(
+        future,
+        [
+            ["git", "init", "-b", "main"],
+            ["git", "commit", "--allow-empty", "-m", "Start."],
+            ["git", "config", "core.repositoryformatversion", "2"],
+        ],
+    )
+    result = git(future, "rev-parse", "--is-inside-work-tree", check=False)
+    assert result.returncode == 128
+    assert "not a git repository" not in result.stderr
+    for options in ([], ["--ids-only"]):
+        result = run_hints(future, "--all", *options)
+        assert result.returncode == 1
+        assert result.stdout == ""
+        failures = reported_failures(result.stderr)
+        assert len(failures) == 1
+        assert "128" in failures[0]
+
+    # A failure after a successful command keeps `No error detected.`.
+    if os.name != "nt" and os.geteuid() != 0:
+        make_repo(resetter_remote, [["git", "init", "--bare", "-b", "main"]])
+        make_repo(
+            resetter,
+            [
+                ["git", "init", "-b", "main"],
+                ["git", "remote", "add", "origin", str(resetter_remote)],
+                write(resetter / "foo.txt", "base"),
+                ["git", "add", "foo.txt"],
+                ["git", "commit", "-m", "Add foo."],
+                ["git", "push", "-u", "origin", "main"],
+                ["git", "commit", "--amend", "-m", "Add foo again."],
+            ],
+        )
+        (state,) = git_paths(resetter, "git-hints/integration-failures.json")
+        result = run_hints(resetter, "explain", "--", "git", "push")
+        assert result.returncode == 1
+        assert state.is_file()
+        state.parent.chmod(0o555)
+        try:
+            result = run_hints(
+                resetter, "explain", "--", "git", "push", "--force"
+            )
+        finally:
+            state.parent.chmod(0o755)
+        assert result.returncode == 1
+        lines = result.stdout.splitlines()
+        assert "Git exited with code 0." in lines
+        assert "No error detected." in lines
+        assert "No hints." not in lines
+        failures = reported_failures(result.stderr)
+        assert len(failures) == 1
+        assert "integration-failures.json" in failures[0]
 
 
 # `detached-head`
