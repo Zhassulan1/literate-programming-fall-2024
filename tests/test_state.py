@@ -177,9 +177,17 @@ def reported_failures(stderr: str) -> list[str]:
 
 
 def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
-    repo, empty, local, remote, pusher, pusher_remote = make_temps(
-        tmp_path_factory, 6
-    )
+    (
+        repo,
+        empty,
+        local,
+        remote,
+        pusher,
+        pusher_remote,
+        future,
+        resetter,
+        resetter_remote,
+    ) = make_temps(tmp_path_factory, 9)
     config_user("user1", "user1@example.com")
     make_repo(
         repo,
@@ -205,11 +213,13 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
     found = blocks(result.stdout)
     assert "no-upstream-branch" in found
     assert "unstaged-changes" not in found
-    # Each failed command is reported once, with its exit code.
+    # Each failed command is reported once, with its exit code, however many
+    # hints use it.
     failures = reported_failures(result.stderr)
     assert failures
     assert len(set(failures)) == len(failures)
     assert all("128" in line for line in failures)
+    assert len([line for line in failures if "--diff-filter=U" in line]) <= 1
 
     result = run_hints(repo, "--all", "--ids-only")
     assert result.returncode == 1
@@ -321,6 +331,62 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
         )
         assert result.returncode == 143
         assert "Git exited with code 143." in result.stdout.splitlines()
+
+    # A failed repository context command is not `not-a-repo`; nothing is
+    # printed on standard output.
+    make_repo(
+        future,
+        [
+            ["git", "init", "-b", "main"],
+            ["git", "commit", "--allow-empty", "-m", "Start."],
+            ["git", "config", "core.repositoryformatversion", "2"],
+        ],
+    )
+    result = git(future, "rev-parse", "--is-inside-work-tree", check=False)
+    assert result.returncode == 128
+    assert "not a git repository" not in result.stderr
+    for options in ([], ["--ids-only"]):
+        result = run_hints(future, "--all", *options)
+        assert result.returncode == 1
+        assert result.stdout == ""
+        failures = reported_failures(result.stderr)
+        assert len(failures) == 1
+        assert "128" in failures[0]
+
+    # A failure after a successful command keeps `No error detected.`.
+    if os.name != "nt" and os.geteuid() != 0:
+        make_repo(resetter_remote, [["git", "init", "--bare", "-b", "main"]])
+        make_repo(
+            resetter,
+            [
+                ["git", "init", "-b", "main"],
+                ["git", "remote", "add", "origin", str(resetter_remote)],
+                write(resetter / "foo.txt", "base"),
+                ["git", "add", "foo.txt"],
+                ["git", "commit", "-m", "Add foo."],
+                ["git", "push", "-u", "origin", "main"],
+                ["git", "commit", "--amend", "-m", "Add foo again."],
+            ],
+        )
+        (state,) = git_paths(resetter, "git-hints/integration-failures.json")
+        result = run_hints(resetter, "explain", "--", "git", "push")
+        assert result.returncode == 1
+        assert state.is_file()
+        state.parent.chmod(0o555)
+        try:
+            result = run_hints(
+                resetter, "explain", "--", "git", "push", "--force"
+            )
+        finally:
+            state.parent.chmod(0o755)
+        assert result.returncode == 1
+        lines = result.stdout.splitlines()
+        assert "Git exited with code 0." in lines
+        assert "No error detected." in lines
+        assert "No hints." not in lines
+        failures = reported_failures(result.stderr)
+        assert len(failures) == 1
+        assert "integration-failures.json" in failures[0]
 
 
 # `detached-head`
