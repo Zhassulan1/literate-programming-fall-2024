@@ -27,7 +27,7 @@ import signal
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Generator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -653,21 +653,27 @@ def emit_stderr(data: bytes) -> None:
         buffer.flush()
 
 
-# Wait for Git and return its captured standard error. The terminal sends the
-# interrupt and quit signals of Ctrl+C and Ctrl+\ to Git and to `git-hints`
-# alike; ignore them while waiting, as a shell does, so that Git decides how to
-# end and its exit code and standard error are still reported. Git was started
-# before this, so it keeps the usual handling of these signals.
-def wait_for_git(process: subprocess.Popen[bytes]) -> bytes:
+# Do nothing when a signal arrives.
+def ignore_signal(signum: int, frame: object) -> None:
+    pass
+
+
+# While Git runs, catch the interrupt and quit signals of Ctrl+C and Ctrl+\,
+# which the terminal sends to Git and to `git-hints` alike, with a handler that
+# does nothing, so that Git decides how to end and its exit code and standard
+# error are still reported. The handler is installed before Git is launched,
+# so no signal can end `git-hints` in between, and Git still keeps the default
+# handling, because launching a program resets caught signals to it.
+@contextlib.contextmanager
+def signals_caught() -> Generator[None]:
     names = ("SIGINT", "SIGQUIT")
     signums = [getattr(signal, name) for name in names if hasattr(signal, name)]
-    previous = [signal.signal(signum, signal.SIG_IGN) for signum in signums]
+    previous = [signal.signal(signum, ignore_signal) for signum in signums]
     try:
-        _, captured = process.communicate()
+        yield
     finally:
         for signum, handler in zip(signums, previous, strict=True):
             signal.signal(signum, handler)
-    return captured
 
 
 # Run a Git command, then explain its failure. Return Git's exit code, or 1
@@ -679,17 +685,18 @@ def explain(
     ids_only: bool,
 ) -> int:
     command = parse_command(argv)
-    try:
-        process = subprocess.Popen(
-            list(argv),
-            stdout=subprocess.DEVNULL if ids_only else None,
-            stderr=subprocess.PIPE,
-            shell=False,
-        )
-    except OSError as error:
-        print(f"git-hints: Could not launch Git: {error}", file=sys.stderr)
-        return 1
-    captured = wait_for_git(process)
+    with signals_caught():
+        try:
+            process = subprocess.Popen(
+                list(argv),
+                stdout=subprocess.DEVNULL if ids_only else None,
+                stderr=subprocess.PIPE,
+                shell=False,
+            )
+        except OSError as error:
+            print(f"git-hints: Could not launch Git: {error}", file=sys.stderr)
+            return 1
+        _, captured = process.communicate()
     emit_stderr(captured)
     stderr = decode(captured)
     returncode = process.returncode

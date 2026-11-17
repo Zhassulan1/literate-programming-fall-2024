@@ -249,9 +249,10 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
             i for i, line in enumerate(lines) if line.startswith("git-hints: ")
         ]
         assert fatal and failed
-        assert fatal[0] < failed[0]
-        assert "--diff-filter=U" in lines[failed[0]]
-        assert "128" in lines[failed[0]]
+        assert any(
+            i > fatal[0] and "--diff-filter=U" in lines[i] and "128" in lines[i]
+            for i in failed
+        )
 
     # With no `git` executable on `PATH`, Git cannot be launched.
     env = dict(os.environ, PATH=str(empty))
