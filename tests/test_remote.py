@@ -488,7 +488,7 @@ def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
 
 # `stale-fetch`
 # -------------
-# <fragment id="cc-p96xv0fgyp" following="3"></fragment>
+# <fragment id="cc-p96xv0fgyp" following="5"></fragment>
 HOUR = 60 * 60
 DAY = 24 * HOUR
 
@@ -511,10 +511,17 @@ def fetch_head(repo: Path) -> Path:
     )
 
 
+# Return the lines of standard error that report an unexpected failure.
+def reported_failures(stderr: str) -> list[str]:
+    return [
+        line for line in stderr.splitlines() if line.startswith("git-hints: ")
+    ]
+
+
 # The test case for `stale-fetch`.
-# <fragment id="cc-ki8lk258rw" following="7"></fragment>
+# <fragment id="cc-ki8lk258rw" following="9"></fragment>
 def test_stale_fetch(tmp_path_factory: pytest.TempPathFactory) -> None:
-    remote, local, wt = make_temps(tmp_path_factory, 3)
+    remote, local, wt, empty = make_temps(tmp_path_factory, 4)
     clone_and_push(remote, local)
     path = fetch_head(local)
 
@@ -550,6 +557,19 @@ def test_stale_fetch(tmp_path_factory: pytest.TempPathFactory) -> None:
     git(local, "switch", "main")
 
     assert "stale-fetch" not in hint_ids(local, "--fetch")
+
+    # A fetch from an empty repository succeeds but fetches nothing, which
+    # leaves `FETCH_HEAD` empty; only the successful `--fetch` skips the hint.
+    git(empty, "init", "--bare")
+    git(local, "remote", "set-url", "origin", str(empty))
+    result = run_hints(local, "--all", "--fetch")
+    assert result.returncode == 0, result.stderr
+    assert path.stat().st_size == 0
+    assert "Fetch failed" not in result.stdout
+    assert "stale-fetch" not in blocks(result.stdout)
+    git(local, "remote", "set-url", "origin", str(remote))
+    git(local, "fetch")
+    assert path.stat().st_size > 0
 
     set_age(path, 2 * DAY)
     git(local, "remote", "set-url", "origin", str(local.parent / "missing"))
@@ -588,6 +608,47 @@ def test_stale_fetch(tmp_path_factory: pytest.TempPathFactory) -> None:
 
     git(local, "remote", "remove", "origin")
     assert "stale-fetch" not in hint_ids(local)
+
+
+# An error other than a missing file when either `FETCH_HEAD` is examined is
+# an unexpected inspection failure, which Language and libraries describes: a
+# `git-hints: ` line naming the file and exit code 1, with the other hints
+# still shown. A symbolic link that points to itself makes reading its status
+# fail with such an error. Git itself may fail on that link when it resolves
+# the path of the current worktree's `FETCH_HEAD`, so the link replaces the
+# main worktree's file, and `git-hints` runs in a linked worktree, which
+# `make_repo()` did not create, as in the `stale-fetch` test. The test is
+# skipped where symbolic links cannot be created.
+# <fragment id="cc-ZknVmHtaTx" following="1"></fragment>
+def test_stale_fetch_inspection_failure(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    remote, local, wt = make_temps(tmp_path_factory, 3)
+    clone_and_push(remote, local)
+    git(local, "worktree", "add", "-b", "feature", str(wt))
+    append(wt / "foo.txt", "more\n")()
+    path = fetch_head(local)
+    try:
+        path.symlink_to(path)
+    except (OSError, NotImplementedError):
+        pytest.skip("symbolic links cannot be created")
+
+    result = run_hints(wt, "--all")
+    assert result.returncode == 1
+    assert result.stdout.splitlines()[0] == "Branch: feature"
+    found = blocks(result.stdout)
+    assert "unstaged-changes" in found
+    assert "stale-fetch" not in found
+    failures = reported_failures(result.stderr)
+    assert len(failures) == 1
+    assert str(path) in failures[0]
+
+    result = run_hints(wt, "--all", "--ids-only")
+    assert result.returncode == 1
+    ids = result.stdout.splitlines()
+    assert "unstaged-changes" in ids
+    assert "stale-fetch" not in ids
+    assert reported_failures(result.stderr) == failures
 
 
 # `--fetch`

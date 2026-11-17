@@ -2085,8 +2085,8 @@ of Push your other local branches?</h4>
       and that its output has an `unstaged-changes` block but no `stale-fetch`
       block. Skip this test where a symbolic link cannot be created.
 
-<h4 id="cc-lpx36a973z" data-gather="cc-75esxee47z cc-p96xv0fgyp cc-ki8lk258rw">
-Implementation of Fetch to see the newest remote commits?</h4>
+<h4 id="cc-lpx36a973z" data-gather="cc-75esxee47z cc-p96xv0fgyp cc-ki8lk258rw
+cc-ZknVmHtaTx">Implementation of Fetch to see the newest remote commits?</h4>
 
 `git-hints explain -- git <command> [<args>...]`
 ------------------------------------------------
