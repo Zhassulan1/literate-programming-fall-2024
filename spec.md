@@ -565,9 +565,9 @@ cc-aZS__ARrao">Implementation of Keep unstaged changes out of this commit?</h4>
   the branch is also ahead, the `diverged` hint applies instead. These counts
   use the last-fetched remote-tracking branch, so label the hint "as of last
   fetch" (see `git-hints --fetch`). Do not display this hint while a merge,
-  rebase, cherry-pick, or revert is in progress (Hint structure, item 7) or
-  while the index has unresolved entries, because `git pull` refuses to run
-  then.
+  rebase, `git am` session, cherry-pick, or revert is in progress (Hint
+  structure, item 7) or while the index has unresolved entries, because `git
+  pull` refuses to run then.
 
 * Test case:
 
@@ -630,10 +630,10 @@ cc-hv2RyOfXis">Implementation of Branch is behind upstream</h4>
   branch.ab +<ahead> -<behind>`; the hint applies when both numbers are above 0.
   When it applies, do not show the `behind` or `push-ahead` hints, because this
   hint replaces them. Label the hint "as of last fetch" (see `git-hints
-  --fetch`). Do not display this hint while a merge, rebase, cherry-pick, or
-  revert is in progress (Hint structure, item 7) or while the index has
-  unresolved entries (`git diff --name-only --diff-filter=U` returns paths),
-  because `git pull` refuses to run then.
+  --fetch`). Do not display this hint while a merge, rebase, `git am` session,
+  cherry-pick, or revert is in progress (Hint structure, item 7) or while the
+  index has unresolved entries (`git diff --name-only --diff-filter=U` returns
+  paths), because `git pull` refuses to run then.
 
 * Test case:
 
@@ -678,11 +678,16 @@ cc-hv2RyOfXis">Implementation of Branch has diverged from upstream</h4>
   least one commit: `git rev-parse --verify --quiet HEAD` must exit 0, because
   pushing a branch with no commits fails with `src refspec <branch> does not
   match any`. Check for an upstream using `git rev-parse --abbrev-ref
-  --symbolic-full-name "@{upstream}"`. Confirm that the `origin` remote exists
-  using `git remote`. Suggest configuring an upstream only when the current
-  branch has no resolvable upstream and `origin` exists. Do not display the hint
-  in detached HEAD state, on a branch with no commits, or when a valid upstream
-  is configured.
+  --symbolic-full-name "@{upstream}"`. When it fails, run `git config --get
+  branch.<name>.merge`: exit code 0 means that an upstream is configured but
+  maps to no remote-tracking branch, as in a single-branch clone or after the
+  remote branch was deleted. The hint must not be displayed then, because its
+  command would not make the upstream resolve in the first case and would
+  recreate a deleted remote branch in the second, which `unpushed-branches` also
+  avoids. Confirm that the `origin` remote exists using `git remote`. Suggest
+  configuring an upstream only when the current branch has no upstream
+  configured and `origin` exists. Do not display the hint in detached HEAD state
+  or on a branch with no commits.
 
 * Test case:
 
@@ -710,7 +715,10 @@ cc-hv2RyOfXis">Implementation of Branch has diverged from upstream</h4>
      verify that it returns `origin/feature-test`.
   9. Run `git-hints --all --ids-only` and verify that `no-upstream-branch` is
      absent.
-  10. Run `git switch -c +plus` and verify that `git-hints --all` recommends
+  10. Run `git push origin --delete feature-test` and verify that `git branch
+      -vv` shows `[origin/feature-test: gone]`, that the command of step 5 fails
+      again, and that `no-upstream-branch` is still absent.
+  11. Run `git switch -c +plus` and verify that `git-hints --all` recommends
       `git push -u origin refs/heads/+plus`.
 
 <h4 id="cc-vvhZq4EYmH" data-gather="cc-wa0iZk_9m1 cc-t7V1Ualy4j">Implementation
@@ -1726,9 +1734,9 @@ cc-DFDJB39a74">Implementation of Stop tracking ignored files?</h4>
 * Command: `git stash show -p --include-untracked 0` shows the changes of
   `stash@{0}`, the newest entry, as a patch, including untracked files that `git
   stash push -u` saved; for an older entry, use its index from `git stash list`
-  instead of `0`. `git stash apply 0` applies them; afterward, `git status`
-  lists the restored changes and the entry stays in `git stash list`. If the
-  changes conflict with your files, Git either refuses to apply them or leaves
+  instead of `0`. `git stash apply 0` applies them; afterward, they are in your
+  working directory and the entry stays in `git stash list`. If the changes
+  conflict with your files, Git either refuses to apply them or leaves
   conflicts to resolve, and the entry stays in the list. Warning: `git stash
   drop 0` deletes the entry, and its changes may be impossible to recover; first
   check with `git stash show -p --include-untracked 0` that they are applied or
@@ -1942,10 +1950,11 @@ of Keep track of stash entries?</h4>
       absent. Run `git merge --abort` as cleanup, including if an assertion
       fails.
   12. Run `git clone --single-branch <remote> <single>`. In `single`, run `git
-      switch -c nf`, commit `nf.txt`, run `git push -u origin nf`, and run `git
-      switch main`. Verify that `git for-each-ref --format='%(upstream)'
-      refs/heads/nf` prints an empty line and that `unpushed-branches` is absent
-      in `single`.
+      switch -c nf`, commit `nf.txt`, and run `git push -u origin nf`; verify
+      that `no-upstream-branch` is absent, because an upstream is configured.
+      Run `git switch main`. Verify that `git for-each-ref
+      --format='%(upstream)' refs/heads/nf` prints an empty line and that
+      `unpushed-branches` is absent in `single`.
   13. In `local`, run `git switch clash`, then `git rebase main`, and require a
       nonzero exit code, because the commits conflict. Verify that
       `unpushed-branches` is absent while the rebase is stopped. Run `git
@@ -2065,6 +2074,15 @@ of Push your other local branches?</h4>
      stash push`. Verify that `git-hints --all --ids-only` lists `stash-entries`
      before `stale-fetch`.
   10. Run `git remote remove origin` and verify that the hint is absent.
+  11. In a separate test, set up `remote` and `local` as in step 1, run `git
+      worktree add -b feature <wt>` in `local`, and append a line to `foo.txt`
+      in `wt`. Replace the main worktree's `FETCH_HEAD`, `path` in `local`, with
+      a symbolic link to itself, and run `git-hints --all` in `wt`, where `git
+      rev-parse` still succeeds and examining that file fails with an error
+      other than a missing file. Verify that it exits with code 1, that exactly
+      one line of its standard error starts with `git-hints: ` and names `path`,
+      and that its output has an `unstaged-changes` block but no `stale-fetch`
+      block. Skip this test where a symbolic link cannot be created.
 
 `git-hints explain -- git <command> [<args>...]`
 ------------------------------------------------
@@ -2611,15 +2629,17 @@ codes, so no additional Git library is required.
   `%(refname:short)`, which print `heads/<name>` or `remotes/<name>` when
   another ref has the same short name. Inspection must not change tracked
   content, the working tree, refs, or the stash; `git diff` may still refresh
-  the cached stat data in the index (`diff.autoRefreshIndex`, which
-  stays enabled because disabling it would make stat-only changes look
-  modified). That refresh takes the index lock whatever `GIT_OPTIONAL_LOCKS`
-  says, so inspection can still hold the lock briefly. The command run by
-  `git-hints explain` is not given these variables. Do not execute commands
-  suggested by hints. Do not fetch unless `--fetch` is supplied; follow that
-  option's environment and timeout requirements. The `git fetch` run by
-  `--fetch` is not an inspection command: it updates remote-tracking branches
-  and `FETCH_HEAD`, and it is not given these variables.
+  the cached stat data in the index. Every inspection `git diff` is run as `git
+  -c diff.autoRefreshIndex=true diff`, whatever the user's configuration says,
+  so that a file whose only change is its stat data, such as its modification
+  time, is not reported as changed. That refresh takes the index lock whatever
+  `GIT_OPTIONAL_LOCKS` says, so inspection can still hold the lock briefly. The
+  command run by `git-hints explain` is not given these variables. Do not
+  execute commands suggested by hints. Do not fetch unless `--fetch` is
+  supplied; follow that option's environment and timeout requirements. The `git
+  fetch` run by `--fetch` is not an inspection command: it updates
+  remote-tracking branches and `FETCH_HEAD`, and it is not given these
+  variables.
 
 * `git-hints explain`: validate that the user-supplied argument list starts with
   `git` (only the exact word `git` is accepted), then execute it once. Leave
@@ -2659,10 +2679,14 @@ Report an unexpected inspection failure, once for each failed command however
 many hints use it, and a failure to launch Git, on standard error as a message
 starting with `git-hints: `, and exit with code 1; for `git-hints explain`,
 these messages follow Git's captured standard error, and this code replaces
-Git's exit code. This applies to both modes, with and without `--ids-only`.
-After an unexpected inspection failure, still print the output that does not
-depend on the failed commands. When Git cannot be launched, report it once,
-stop, and print nothing on standard output.
+Git's exit code. This applies to both modes, with and without `--ids-only`. An
+operating-system error with a file that inspection reads directly rather than
+through Git, such as reading the modification time of `FETCH_HEAD` for
+`stale-fetch`, is also an unexpected inspection failure, reported once for each
+file; name the file in its message. After an unexpected inspection failure,
+still print the output that does not depend on the failed commands or files.
+When Git cannot be launched, report it once, stop, and print nothing on
+standard output.
 
 Decode Git output as UTF-8, replacing invalid byte sequences, not with the
 locale default. When a path list is parsed, use `-z` or `-c
@@ -2687,13 +2711,13 @@ its title:
 
 1. If the title is preceded by an explicit anchor line `[[ID]]`, or ends in a
    space and `[[ID]]`, as in `TITLE [[ID]]`, the ID is exactly `ID`; for
-   example, UPSTREAM BRANCHES, included into `git-pull` and `git-push` from
-   `urls-remotes.adoc`, has the ID `UPSTREAM-BRANCHES`. Any other inline anchor
-   `[[ID]]` inside the title, as in `REMOTES[[REMOTES]]`, adds the ID `ID`, and
-   the section keeps the ID that rule 2 derives from the title without the
-   anchor, here `_remotes`. An anchor line applies to the next title even when
-   blank lines, comments, or attribute lines such as `[appendix]` come between
-   them.
+   example, UPSTREAM BRANCHES, included into `git-fetch`, `git-pull`, and
+   `git-push` from `urls-remotes.adoc`, has the ID `UPSTREAM-BRANCHES`. Any
+   other inline anchor `[[ID]]` inside the title, as in `REMOTES[[REMOTES]]`,
+   adds the ID `ID`, and the section keeps the ID that rule 2 derives from the
+   title without the anchor, here `_remotes`. An anchor line applies to the next
+   title even when blank lines, comments, or attribute lines such as
+   `[appendix]` come between them.
 2. Otherwise the title is first rendered to HTML as Asciidoctor renders it: an
    attribute reference such as `{caret}` is replaced by its value, and
    Asciidoctor's replacements produce HTML entities, such as an em dash between
@@ -2771,7 +2795,7 @@ from the repository root, without using the network, and check that:
    explain`, as a Markdown link or in a code span, and each
    `https://git-scm.com/docs/` URL of a Markdown link in those sections is in
    the table, compared as whole strings; a `https://git-scm.com/docs/` URL in
-   those sections outside a Markdown link and a code span fails the check;
+   those sections outside a link destination and a code span fails the check;
 3. no module in `src/git_hints/` other than `docs.py` contains a
    `https://git-scm.com/docs/` string, so every link comes from the table;
 4. each entry's kind fits its URL, which has no fragment for a whole page, a
@@ -2966,6 +2990,11 @@ Test case for the inspection environment of Language and libraries, in
    main`, commit another file, and create a tag named `main`. Verify that
    `git-hints --all --ids-only` lists `push-ahead`, which a branch name read
    with `git symbolic-ref --short` would hide.
+4. In a new repository, commit four files, run `git config diff.autoRefreshIndex
+   false`, and move each file's modification time one hour into the past with
+   `os.utime()`. Verify that `git diff --name-only` lists the four files and
+   that `git-hints --all --ids-only` lists neither `unstaged-changes` nor
+   `many-changed-files`.
 
 Test case for the failure reporting of Language and libraries, in
 `tests/test_state.py`:
