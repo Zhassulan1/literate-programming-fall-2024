@@ -8,6 +8,7 @@ import pytest
 from git_test_tools import (
     all_blocks,
     append,
+    collapse,
     commands,
     commit_file,
     config_user,
@@ -265,6 +266,130 @@ def test_no_upstream_branch(tmp_path_factory: pytest.TempPathFactory) -> None:
     git(first, "push", "-u", "origin", "feature-test")
     assert git(first, *upstream).stdout.strip() == "origin/feature-test"
     assert "no-upstream-branch" not in hint_ids(first)
+
+
+# `unpushed-branches`
+# -------------------
+def test_unpushed_branches(tmp_path_factory: pytest.TempPathFactory) -> None:
+    remote, local, single = make_temps(tmp_path_factory, 3)
+    config_user("user1", "user1@example.com")
+    make_repo(remote, [["git", "init", "--bare", "-b", "main"]])
+    git(local.parent, "clone", str(remote), str(local))
+    commit_file(local, "foo.txt", "base\n", "Add foo.")
+    git(local, "push", "-u", "origin", "main")
+
+    assert "unpushed-branches" not in hint_ids(local)
+    git(local, "branch", "topic")
+    assert "unpushed-branches" not in hint_ids(local)
+
+    git(local, "switch", "-c", "feature")
+    commit_file(local, "bar.txt", "feature\n", "Add feature file.")
+    git(local, "switch", "main")
+    assert "unpushed-branches" in hint_ids(local)
+    _, found = all_blocks(local)
+    block = collapse(found["unpushed-branches"])
+    assert "As of last fetch:" in block
+    assert "feature (no upstream)" in block
+    assert "main (" not in block and "topic (" not in block
+    assert commands(found["unpushed-branches"]) == [
+        "git push -u origin feature"
+    ]
+    assert "https://git-scm.com/docs/git-push#UPSTREAM-BRANCHES" in block
+
+    git(local, "switch", "feature")
+    assert "unpushed-branches" not in hint_ids(local)
+    assert "no-upstream-branch" in hint_ids(local)
+    git(local, "switch", "main")
+
+    git(local, "push", "-u", "origin", "feature")
+    assert "unpushed-branches" not in hint_ids(local)
+    git(local, "switch", "feature")
+    commit_file(local, "next.txt", "next\n", "Add another feature file.")
+    git(local, "switch", "main")
+    assert "[origin/feature: ahead 1]" in git(local, "branch", "-vv").stdout
+    _, found = all_blocks(local)
+    block = collapse(found["unpushed-branches"])
+    assert "feature (ahead of origin/feature by 1 commit)" in block
+    assert commands(found["unpushed-branches"]) == ["git push origin feature"]
+
+    git(local, "switch", "--detach", "feature")
+    _, found = all_blocks(local)
+    assert "feature (ahead of origin/feature by 1 commit)" in collapse(
+        found["unpushed-branches"]
+    )
+    git(local, "switch", "main")
+
+    git(local, "branch", "--track", "loc", "main")
+    git(local, "switch", "loc")
+    commit_file(local, "local.txt", "local\n", "Add local-upstream file.")
+    git(local, "switch", "main")
+    _, found = all_blocks(local)
+    assert "loc (" not in collapse(found["unpushed-branches"])
+
+    for number in range(1, 7):
+        branch = f"b{number}"
+        git(local, "switch", "-c", branch, "main")
+        commit_file(local, f"{branch}.txt", branch, f"Add {branch}.")
+    git(local, "switch", "main")
+    _, found = all_blocks(local)
+    block = collapse(found["unpushed-branches"])
+    for number in range(1, 6):
+        assert f"b{number} (no upstream)" in block
+    assert "b6 (" not in block and "feature (" not in block
+    assert "and 2 more" in block
+
+    git(local, "push", "-u", "origin", "b1")
+    git(local, "push", "origin", "--delete", "b1")
+    assert "[origin/b1: gone]" in git(local, "branch", "-vv").stdout
+    git(local, "push", "-u", "origin", "b2")
+    git(local, "switch", "b2")
+    git(local, "commit", "--amend", "-m", "Change b2.")
+    git(local, "switch", "main")
+    assert (
+        "[origin/b2: ahead 1, behind 1]" in git(local, "branch", "-vv").stdout
+    )
+    _, found = all_blocks(local)
+    block = collapse(found["unpushed-branches"])
+    assert "b1 (" not in block and "b2 (" not in block
+
+    append(local / "foo.txt", "main\n")()
+    git(local, "commit", "-am", "Change foo on main.")
+    git(local, "switch", "-c", "clash", "HEAD^")
+    write(local / "foo.txt", "clash\n")()
+    git(local, "commit", "-am", "Change foo on clash.")
+    git(local, "switch", "main")
+    assert git(local, "merge", "clash", check=False).returncode != 0
+    try:
+        assert "unpushed-branches" not in hint_ids(local)
+    finally:
+        git(local, "merge", "--abort")
+
+    git(single.parent, "clone", "--single-branch", str(remote), str(single))
+    git(single, "switch", "-c", "nf")
+    commit_file(single, "nf.txt", "nf\n", "Add nf.")
+    git(single, "push", "-u", "origin", "nf")
+    git(single, "switch", "main")
+    assert (
+        git(
+            single,
+            "for-each-ref",
+            "--format=%(upstream)",
+            "refs/heads/nf",
+        ).stdout
+        == "\n"
+    )
+    assert "unpushed-branches" not in hint_ids(single)
+
+    git(local, "switch", "clash")
+    assert git(local, "rebase", "main", check=False).returncode != 0
+    try:
+        assert "unpushed-branches" not in hint_ids(local)
+    finally:
+        git(local, "rebase", "--abort")
+        git(local, "switch", "main")
+
+    git(local, "remote", "remove", "origin")
+    assert "unpushed-branches" not in hint_ids(local)
 
 
 # `--fetch`

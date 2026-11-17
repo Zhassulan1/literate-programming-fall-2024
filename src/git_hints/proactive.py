@@ -19,6 +19,7 @@
 #
 # ### Standard library
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -1082,6 +1083,130 @@ def stash_entries(ctx: Context) -> Hint | None:
     )
 
 
+# Other local branches
+# --------------------
+def unpushed_branches(ctx: Context) -> Hint | None:
+    repo = ctx.repo
+    operations = repo.operations
+    if (
+        operations.paused
+        or operations.am
+        or operations.bisect
+        or repo.unmerged_paths
+    ):
+        return None
+    remotes = repo.remotes
+    if not remotes:
+        return None
+
+    symbolic = repo.check("symbolic-ref", "--quiet", "HEAD", ok=(0, 1))
+    current = (
+        symbolic.stdout.strip().removeprefix("refs/heads/")
+        if symbolic.returncode == 0
+        else None
+    )
+    log = repo.check(
+        "log",
+        "--branches",
+        "--not",
+        "--remotes",
+        "--simplify-by-decoration",
+        "--decorate",
+        "--decorate-refs=refs/heads/",
+        "--no-show-signature",
+        "--format=%D",
+    )
+    candidates = {
+        branch
+        for line in log.stdout.splitlines()
+        if line
+        for branch in line.split(", ")
+    }
+    candidates.discard(current)
+    if not candidates:
+        return None
+
+    configured = repo.check(
+        "config", "--get-regexp", r"^branch\..*\.merge$", ok=(0, 1)
+    )
+    configured_upstreams = {
+        key.removeprefix("branch.").removesuffix(".merge")
+        for line in configured.stdout.splitlines()
+        for key in [line.split(maxsplit=1)[0]]
+    }
+    refs = repo.check(
+        "for-each-ref",
+        "--format=%(refname:lstrip=2) %(upstream:remotename) "
+        "%(upstream:remoteref) %(upstream:short) %(upstream:track)",
+        "refs/heads/",
+    )
+    reported: list[tuple[str, str, str]] = []
+    for line in refs.stdout.splitlines():
+        fields = line.split(" ", 4)
+        if len(fields) != 5:
+            raise InspectionError(refs, "unexpected `git for-each-ref` output")
+        branch, remote, remote_ref, upstream, track = fields
+        if branch not in candidates:
+            continue
+        if not upstream:
+            if "origin" not in remotes or branch in configured_upstreams:
+                continue
+            label = "no upstream"
+            command = f"git push -u origin {shell_quote(branch)}"
+        else:
+            ahead = re.fullmatch(r"\[ahead ([0-9]+)\]", track)
+            if remote == "." or ahead is None:
+                continue
+            count = int(ahead.group(1))
+            label = f"ahead of {upstream} by {plural(count, 'commit')}"
+            destination = remote_ref.removeprefix("refs/heads/")
+            refspec = (
+                branch if destination == branch else f"{branch}:{destination}"
+            )
+            command = f"git push {shell_quote(remote)} {shell_quote(refspec)}"
+        reported.append((branch, label, command))
+    if not reported:
+        return None
+
+    listed = reported[:5]
+    summary = ", ".join(
+        f"{code(branch)} ({label})" for branch, label, _ in listed
+    )
+    hidden = len(reported) - len(listed)
+    if hidden:
+        summary += f", and {hidden} more"
+    count = (
+        "1 local branch has"
+        if len(reported) == 1
+        else f"{len(reported)} local branches have"
+    )
+    return Hint(
+        id="unpushed-branches",
+        priority=Priority.WORKFLOW,
+        text=(
+            "Do you want to "
+            "[push](https://git-scm.com/docs/git-push#UPSTREAM-BRANCHES "
+            '"Push a branch; with -u, Git also records the remote branch as '
+            'its upstream in your local configuration") your other local '
+            f"branches? {count} commits that no remote-tracking branch "
+            f"contains: {summary}."
+        ),
+        stage=(
+            "These commits are in your local repository only; the remote "
+            "repository has no copy of them until you push the branches."
+        ),
+        commands=tuple(
+            Command(
+                code(command),
+                f"The remote receives the commits from {code(branch)}, and "
+                "this hint no longer lists that branch.",
+            )
+            for branch, _, command in listed
+        ),
+        as_of_last_fetch=True,
+    )
+
+
 # Configuration
 # -------------
 def commit_identity(ctx: Context) -> Hint | None:
@@ -1150,6 +1275,7 @@ CHECKS: list[Callable[[Context], Hint | None]] = [
     changes_on_default_branch,
     tracked_but_ignored,
     stash_entries,
+    unpushed_branches,
     commit_identity,
 ]
 
