@@ -59,7 +59,8 @@ CLI commands
 
    * Global options, where applicable, precede `explain`: for example,
      `git-hints --ids-only explain -- git push`. The `--fetch` option is invalid
-     with `explain` and must be rejected without running Git.
+     with `explain` and must be rejected without running Git: print an error to
+     standard error and exit 2.
 
    * Emit captured Git standard error to standard error. In normal output, print
      `Git exited with code <n>.` before any reactive hint blocks on standard
@@ -2509,12 +2510,18 @@ Git ran, return Git's exit code, unless an unexpected inspection failure occurs.
 If Git cannot be launched, report that failure instead of inventing a Git exit
 code or repository condition.
 
-Plain `git-hints` exits 0 whenever inspection completes, whether or not any hint
-is triggered. It exits nonzero only when it reports an unexpected inspection
-failure or that Git cannot be launched.
+Plain `git-hints` exits 0, whether or not any hint is triggered, and `git-hints
+explain` returns Git's exit code, except for the usage errors of CLI commands,
+which exit 2, and for the failures of the next paragraph.
 
-`git-hints explain` returns Git's exit code. It exits nonzero instead when Git
-cannot be launched or an unexpected inspection failure occurs.
+Report an unexpected inspection failure, once for each failed command however
+many hints use it, and a failure to launch Git, on standard error as a message
+starting with `git-hints: `, and exit with code 1; for `git-hints explain`,
+these messages follow Git's captured standard error, and this code replaces
+Git's exit code. This applies to both modes, with and without `--ids-only`.
+After an unexpected inspection failure, still print the output that does not
+depend on the failed commands. When Git cannot be launched, report it once,
+stop, and print nothing on standard output.
 
 Decode Git output as UTF-8 (`encoding="utf-8", errors="replace"`), not with the
 locale default. When a path list is parsed, use `-z` or `-c
@@ -2801,6 +2808,41 @@ Test case for the inspection environment of Language and libraries, in
    `git-hints --all --ids-only` lists `push-ahead`, which a branch name read
    with `git symbolic-ref --short` would hide.
 
+Test case for the failure reporting of Language and libraries, in
+`tests/test_state.py`:
+
+1. Create a repository with one commit, run `git remote add origin
+   <any-path>`, and append a line to the committed file. Verify that
+   `git-hints --all --ids-only` lists `no-upstream-branch` and
+   `unstaged-changes`. Replace the contents of the file at the path printed by
+   `git rev-parse --path-format=absolute --git-path index` with the bytes
+   `garbage`, so that every Git command that reads the index exits with code
+   128. Run `git-hints --all` and verify that it exits with code 1, that the
+   first line of its standard output is `Branch: main`, that its output has a
+   block for `no-upstream-branch`, which does not read the index, and none for
+   `unstaged-changes`, which does, and that at least one line of its standard
+   error starts with `git-hints: `. Run `git-hints --all --ids-only` and verify
+   that it exits with code 1, that its standard output lists
+   `no-upstream-branch` but not `unstaged-changes` and has no line starting
+   with `Branch:`, and that at least one line of its standard error starts with
+   `git-hints: `.
+2. In the same repository, run `git-hints explain -- git status --short`. Git
+   itself exits with code 128, and the `merge-conflicts` check then fails to
+   inspect the index with `git diff --name-only --diff-filter=U -z`. Verify
+   that `git-hints` exits with code 1, that its standard output contains the
+   line `Git exited with code 128.`, and that its standard error contains a
+   line starting with `fatal:`, which is Git's own message, followed later by a
+   line starting with `git-hints: `. Run `git-hints --ids-only explain -- git
+   status --short` and verify that it exits with code 1, that its standard
+   output is empty, and that its standard error contains both lines again.
+3. Create an empty directory. In the same repository, run `git-hints --all` and
+   then `git-hints explain -- git status`, each with `PATH` set to that
+   directory, so that Git cannot be launched. Start `git-hints` through the
+   absolute path of the Python interpreter, because a `git-hints` script could
+   not be found through that `PATH` either. For each run, verify that it exits
+   with code 1, that its standard output is empty, and that its standard error
+   is one line starting with `git-hints: `.
+
 Development strategy
 ====================
 
@@ -2816,14 +2858,14 @@ specification it concerns, and the code follows the specification:
   documentation link is chosen and checked, and how each hint section is
   connected with its code.
 * Language and libraries requires `GIT_OPTIONAL_LOCKS=0` and `LC_ALL=C` for
-  inspection commands and reads the current branch's name without `git
-  symbolic-ref --short`, and Testing has the test case for both.
+  inspection commands, reads the current branch's name without `git
+  symbolic-ref --short`, and defines how unexpected failures are reported;
+  Testing has the test cases for all three.
 
 The subsection below, Implementation Strategy, is being merged into the parts
 of the specification it concerns in the same way. Until then, a decision
 recorded in it applies where it differs from those parts; its descriptions of
-the existing code, such as its test count, do not limit the changes listed
-above.
+the existing code do not limit the changes listed above.
 
 All changes follow these rules:
 
@@ -2842,27 +2884,6 @@ All changes follow these rules:
 
 Implementation Strategy
 -----------------------
-
-### Repository Inspection
-
-The repository inspector collects branch information, staged and unstaged
-changes, untracked files, upstream status, and active Git operations.
-
-Each piece of state comes from the command named in the hint conditions: for
-example, `git status --porcelain=v2 --branch` for upstream status, `git status
---porcelain=v1 -z --untracked-files=all` for untracked files, `git diff --quiet`
-and `git diff --cached --quiet` for changes, and `git rev-parse` for
-operation-state paths.
-
-Inspection subprocesses, but not the command run by `explain`, use
-`GIT_OPTIONAL_LOCKS=0`, so that `git status` does not take the index lock.
-Inspection must not change tracked content, the working tree, refs, or the stash.
-`git diff` may still refresh the cached stat data in the index, because
-`diff.autoRefreshIndex` stays enabled: disabling it would make files whose stat
-data alone changed look modified. An explicit `--fetch` updates
-remote-tracking refs and `FETCH_HEAD`. The only permitted network operation is
-an explicitly requested `--fetch`, which follows the specification's timeout,
-environment, and fallback requirements.
 
 ### Hint Detection and Prioritization
 
@@ -2887,51 +2908,3 @@ output. Hint IDs remain stable.
 Operation-in-progress suppression is applied inside the checks, which consult
 `Repo.operations` and `Repo.unmerged_paths`. `show_hints` applies the
 three-hint limit (`HINT_LIMIT`) to the sorted list; `explain` never applies it.
-
-### Output Rendering
-
-`render_block` in `hint.py` renders one hint as the block defined in Hint
-structure; `to_terminal` turns its Markdown into text with numbered
-documentation references. `show_hints` and `explain` print, in order:
-
-1. Plain `git-hints` inside a working tree: `Branch: <name>` or `Branch:
-   detached HEAD`; `Fetch failed; showing results as of last fetch.` after a
-   failed or timed-out `--fetch`; then either `No hints.`, or the notice `<n>
-   more hint(s) available; run "git-hints --all" to see them.` when hints were
-   left out, followed by one `render_block` block per shown hint.
-2. `--ids-only`: only the IDs of the shown hints, one per line, and nothing
-   else on standard output.
-3. `explain`: Git's own standard output and standard error first, then `Git
-   exited with code <n>.`, then `No error detected.` on exit code 0, or one
-   block per triggered reactive hint, or `No hints.` when none triggers. Under
-   `--ids-only`, only the triggered IDs.
-
-Unexpected inspection failures follow on standard error as `git-hints:
-<message>`, and the exit code becomes 1. Invalid `explain` usage exits with
-`USAGE_ERROR` (2) without running Git.
-
-Safety labels are applied to individual suggested commands independently of
-hint priority.
-
-### Testing and Validation
-
-Pytest is used with isolated temporary Git repositories and the required
-`git_setup`, `make_temps`, `make_repo`, and `config_user` helpers, defined in
-`tests/git_test_tools.py`, where `run_hints` and `blocks` also run `git-hints`
-in its own process and split its output by `ID:` lines.
-
-The suite has 58 tests in `test_cli.py`, `test_state.py`, `test_changes.py`,
-`test_remote.py`, and `test_explain.py`. They verify triggering conditions,
-suppression rules, hint ordering, command safety, CLI output, remote behavior,
-and exit-code preservation.
-
-The implementation is validated with Ruff, ty, and the complete automated test
-suite. Further work follows the other subsections of Development strategy, and
-each change there comes with its own tests.
-
-### Implementation in the next phase
-
-1. Keep the module map in Architecture and the output list in Output Rendering
-   current as the other subsections add modules, such as the documentation
-   table in `src/git_hints/docs.py`, and output.
-2. Run the full test suite, Ruff, and ty.
