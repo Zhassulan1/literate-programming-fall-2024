@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 # ### Local
+from . import docs
 from .git import GitLaunchError, InspectionError, Repo, split_nul
 from .hint import (
     Command,
@@ -85,10 +86,10 @@ def not_a_repo() -> Hint:
         priority=Priority.INFORMATIONAL,
         text=(
             "Would you like to clone a "
-            "[repository](https://git-scm.com/docs/git-clone "
+            f"[repository]({docs.GIT_CLONE_DESCRIPTION.url} "
             '"Clone a repository into a new directory")? '
             "To start a new project instead, "
-            "[initialize](https://git-scm.com/docs/git-init "
+            f"[initialize]({docs.GIT_INIT_DESCRIPTION.url} "
             '"Create an empty Git repository") one.'
         ),
         stage=(
@@ -123,7 +124,7 @@ def merge_conflicts(ctx: Context) -> Hint | None:
         priority=Priority.ERROR_BLOCKED,
         text=(
             "Unresolved [merge conflicts]"
-            "(https://git-scm.com/docs/git-merge#_how_conflicts_are_presented "
+            f"({docs.GIT_MERGE_HOW_CONFLICTS_ARE_PRESENTED.url} "
             '"Conflicts occur when Git cannot automatically combine changes") '
             f"remain in these files: {summarize(paths)}. "
             "Resolve them before continuing."
@@ -169,7 +170,7 @@ def operation_in_progress(ctx: Context) -> Hint | None:
     if operation is None:
         return None
     text = (
-        f"A [{code(operation)}](https://git-scm.com/docs/git-{operation} "
+        f"A [{code(operation)}]({docs.OPERATIONS[operation].url} "
         f'"{OPERATION_SUMMARIES[operation]}") is in progress. Git paused it '
         "and is waiting for you to finish or cancel it."
     )
@@ -199,7 +200,7 @@ def operation_in_progress(ctx: Context) -> Hint | None:
         text += (
             f" Some files have conflicts: {summarize(paths)}. Open each "
             "conflicted file, choose the final content, then "
-            "[stage](https://git-scm.com/docs/git-add "
+            f"[stage]({docs.GIT_MERGE_HOW_TO_RESOLVE_CONFLICTS.url} "
             '"Marks a resolved file so Git knows the conflict is fixed") it. '
             "When no conflicts remain, run the continue command. To cancel "
             "instead, run the abort command."
@@ -243,7 +244,7 @@ def bisect_in_progress(ctx: Context) -> Hint | None:
         id="bisect-in-progress",
         priority=Priority.INFORMATIONAL,
         text=(
-            "A [bisect](https://git-scm.com/docs/git-bisect "
+            f"A [bisect]({docs.GIT_BISECT_BASIC_COMMANDS.url} "
             '"Use binary search to find the commit that introduced a bug") '
             "is in progress. Git checks out commits for you to test, so HEAD "
             "stays detached until the bisect ends."
@@ -300,7 +301,7 @@ def detached_head(ctx: Context) -> Hint | None:
     ).stdout.splitlines()
     text = (
         "You are in [detached HEAD]"
-        "(https://git-scm.com/docs/git-checkout#_detached_head "
+        f"({docs.GIT_CHECKOUT_DETACHED_HEAD.url} "
         '"HEAD points at a commit instead of a branch; new commits belong to '
         'no branch"). Create a branch if you want to keep working here and '
         "give your commits a branch name."
@@ -368,9 +369,9 @@ def no_commits(ctx: Context) -> Hint | None:
     text = (
         "Your current branch has no commits yet. Prepare the files you want "
         "to save, then create your first "
-        "[commit](https://git-scm.com/docs/git-commit "
+        f"[commit]({docs.GIT_COMMIT_DESCRIPTION.url} "
         '"Record staged changes as a new commit"). Select files to save using '
-        "[git add](https://git-scm.com/docs/git-add "
+        f"[git add]({docs.GIT_ADD_DESCRIPTION.url} "
         '"Add selected file contents to the staging area").'
     )
     # Step 3: offer a commit only once something is staged.
@@ -432,10 +433,10 @@ def diverged(ctx: Context) -> Hint | None:
             f"{plural(status.ahead, 'commit')} the upstream lacks, and the "
             f"upstream has {plural(status.behind, 'commit')} your branch "
             "lacks. Do you want to integrate the remote commits with "
-            "[git pull](https://git-scm.com/docs/git-pull "
+            f"[git pull]({docs.GIT_PULL_DESCRIPTION.url} "
             '"Fetches and integrates remote commits; --rebase replays yours on '
             'top of them.") and then share yours with '
-            "[git push](https://git-scm.com/docs/git-push "
+            f"[git push]({docs.GIT_PUSH_NOTE_ABOUT_FAST_FORWARDS.url} "
             '"Uploads local commits to the remote branch.")? A plain '
             "`git pull` fails on diverged branches unless `pull.rebase` or "
             "`pull.ff` is configured."
@@ -476,7 +477,7 @@ def behind(ctx: Context) -> Hint | None:
         id="behind",
         priority=Priority.WORKFLOW,
         text=(
-            "Do you want to [pull](https://git-scm.com/docs/git-pull "
+            f"Do you want to [pull]({docs.GIT_PULL_DESCRIPTION.url} "
             '"Fetches commits from the remote and integrates them into your '
             'current branch") the newest remote commits before you start '
             "editing? Your branch does not contain remote commits that were "
@@ -522,7 +523,7 @@ def push_ahead(ctx: Context) -> Hint | None:
         id="push-ahead",
         priority=Priority.WORKFLOW,
         text=(
-            "Do you want to [push](https://git-scm.com/docs/git-push "
+            f"Do you want to [push]({docs.GIT_PUSH_DESCRIPTION.url} "
             '"Uploads the latest changes of your local repository (repo) to a '
             "remote repository so other collaborators can download your "
             'work.")? Your branch has '
@@ -571,7 +572,7 @@ def no_upstream_branch(ctx: Context) -> Hint | None:
         priority=Priority.WORKFLOW,
         text=(
             "Do you want to configure an [upstream branch]"
-            "(https://git-scm.com/docs/git-branch "
+            f"({docs.GIT_PUSH_UPSTREAM_BRANCHES.url} "
             '"A remote branch that your local branch tracks") before pushing?'
         ),
         stage=(
@@ -602,10 +603,10 @@ def staged_and_unstaged_changes(ctx: Context) -> Hint | None:
         priority=Priority.WORKFLOW,
         text=(
             "Do you want to keep unstaged changes out of this commit? "
-            "[git commit](https://git-scm.com/docs/git-commit "
+            f"[git commit]({docs.GIT_COMMIT_DESCRIPTION.url} "
             '"Records the staged changes in a new commit.") records staged '
             "changes only. Review the staged changes with "
-            "[git diff](https://git-scm.com/docs/git-diff "
+            f"[git diff]({docs.GIT_DIFF_CACHED.url} "
             '"Shows changes staged for the next commit").'
         ),
         stage=(
@@ -640,9 +641,9 @@ def staged_changes(ctx: Context) -> Hint | None:
         priority=Priority.WORKFLOW,
         text=(
             "Would you like to review your [staged changes]"
-            "(https://git-scm.com/docs/git-diff "
+            f"({docs.GIT_DIFF_CACHED.url} "
             '"Show changes staged for the next commit") before committing? '
-            "Use [git commit](https://git-scm.com/docs/git-commit "
+            f"Use [git commit]({docs.GIT_COMMIT_DESCRIPTION.url} "
             '"Record the staged changes in a new commit") when they are ready.'
         ),
         stage=(
@@ -671,7 +672,7 @@ def unstaged_changes(ctx: Context) -> Hint | None:
         id="unstaged-changes",
         priority=Priority.WORKFLOW,
         text=(
-            "Do you want to [stage](https://git-scm.com/docs/git-add "
+            f"Do you want to [stage]({docs.GIT_ADD_DESCRIPTION.url} "
             '"Also called the index; select which changed files to store in a '
             'commit") files?'
         ),
@@ -748,9 +749,9 @@ def untracked_files(ctx: Context) -> Hint | None:
     ]
     candidates = [p for p in paths if ignore_pattern(p) is not None]
     text = (
-        "Do you need to [stage](https://git-scm.com/docs/git-add "
+        f"Do you need to [stage]({docs.GIT_ADD_DESCRIPTION.url} "
         '"Add files to the staging area") or '
-        "[ignore](https://git-scm.com/docs/gitignore "
+        f"[ignore]({docs.GITIGNORE_DESCRIPTION.url} "
         '"Specify intentionally untracked files that Git should ignore") '
         "untracked files?"
     )
@@ -846,7 +847,7 @@ def many_changed_files(ctx: Context) -> Hint | None:
         text=(
             "More than half of the tracked files in this repository have "
             f"changes ({count} of {len(tracked)}). Would you like to review "
-            "the changes and [commit](https://git-scm.com/docs/git-commit "
+            f"the changes and [commit]({docs.GIT_COMMIT_DESCRIPTION.url} "
             '"Records staged changes as a new commit in the local '
             'repository") the work you want to save?'
         ),
@@ -916,7 +917,7 @@ def changes_on_default_branch(ctx: Context) -> Hint | None:
         text=(
             f"You have uncommitted changes on {code(branch)}, the branch your "
             "remote treats as its default. Do you want to make them on a new "
-            "[branch](https://git-scm.com/docs/git-switch "
+            f"[branch]({docs.GIT_SWITCH_DESCRIPTION.url} "
             '"Create a new branch at the current commit and switch to it") '
             "instead?"
         ),
@@ -962,7 +963,7 @@ def tracked_but_ignored(ctx: Context) -> Hint | None:
         priority=Priority.WORKFLOW,
         text=(
             "Do you want Git to stop tracking files that match active "
-            "[ignore rules](https://git-scm.com/docs/gitignore "
+            f"[ignore rules]({docs.GITIGNORE_NOTES.url} "
             '"Lists patterns for files Git should not track; it only affects '
             'files that are not already tracked")? These rules may come from '
             "`.gitignore`, `.git/info/exclude`, or a global excludes file. "
@@ -971,7 +972,7 @@ def tracked_but_ignored(ctx: Context) -> Hint | None:
             "added any of them deliberately, for example with `git add -f`, "
             "you can keep tracking them. To stop tracking a file but keep it "
             "on your disk, use [`git rm --cached`]"
-            "(https://git-scm.com/docs/git-rm "
+            f"({docs.GIT_RM_CACHED.url} "
             '"With --cached, removes a file from the index but leaves it in '
             'your working directory"). Anyone who pulls your commit will have '
             "the file deleted, and it remains in earlier commits, so change "
@@ -1042,12 +1043,12 @@ def stash_entries(ctx: Context) -> Hint | None:
         priority=Priority.INFORMATIONAL,
         text=(
             f"This repository has {count} in its "
-            "[stash](https://git-scm.com/docs/git-stash#_description "
+            f"[stash]({docs.GIT_STASH_DESCRIPTION.url} "
             '"Saved changes that you can list, inspect, and apply again '
             'later"). Stash entries belong to the whole repository, not to '
             "the branch you were on, so they stay listed after you switch "
             f"branches. The newest ones are: {listed}. Do you want to "
-            "[apply or drop](https://git-scm.com/docs/git-stash#_commands "
+            f"[apply or drop]({docs.GIT_STASH_COMMANDS.url} "
             '"Commands that restore a stash entry or remove it from the '
             'list") them?'
         ),
@@ -1196,7 +1197,7 @@ def unpushed_branches(ctx: Context) -> Hint | None:
         priority=Priority.WORKFLOW,
         text=(
             "Do you want to "
-            "[push](https://git-scm.com/docs/git-push#UPSTREAM-BRANCHES "
+            f"[push]({docs.GIT_PUSH_UPSTREAM_BRANCHES.url} "
             '"Push a branch; with -u, Git also records the remote branch as '
             'its upstream in your local configuration") your other local '
             f"branches? {count} commits that no remote-tracking branch "
@@ -1247,8 +1248,7 @@ def commit_identity(ctx: Context) -> Hint | None:
         priority=Priority.WORKFLOW,
         text=(
             "Do you want to configure your [commit identity]"
-            "(https://git-scm.com/docs/git-config"
-            "#Documentation/git-config.txt-username "
+            f"({docs.GIT_CONFIG_USER_NAME.url} "
             '"The name and email address Git records as the author of each '
             'commit")? Git needs both a user name and an email address to '
             "create commits. The `--global` option sets the default for all of "

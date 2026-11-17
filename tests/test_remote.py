@@ -151,7 +151,7 @@ def test_behind(tmp_path_factory: pytest.TempPathFactory) -> None:
     block = found["behind"]
     assert "As of last fetch: " in block
     assert "git pull" in commands(block)
-    assert "https://git-scm.com/docs/git-pull" in block
+    assert "https://git-scm.com/docs/git-pull#_description" in block
 
     make_repo(
         repo1,
@@ -210,8 +210,10 @@ def test_diverged(tmp_path_factory: pytest.TempPathFactory) -> None:
         command.startswith("Caution: git pull --rebase")
         for command in commands(block)
     )
-    assert "https://git-scm.com/docs/git-pull" in block
-    assert "https://git-scm.com/docs/git-push" in block
+    assert "https://git-scm.com/docs/git-pull#_description" in block
+    assert (
+        "https://git-scm.com/docs/git-push#_note_about_fast_forwards" in block
+    )
 
 
 def test_upstream_hints_suppressed_during_merge(

@@ -68,8 +68,8 @@ def test_not_a_repo(tmp_path_factory: pytest.TempPathFactory) -> None:
     block = found["not-a-repo"]
     assert "Command: git clone <repository-url>" in block
     assert "Command: git init" in block
-    assert "https://git-scm.com/docs/git-clone" in block
-    assert "https://git-scm.com/docs/git-init" in block
+    assert "https://git-scm.com/docs/git-clone#_description" in block
+    assert "https://git-scm.com/docs/git-init#_description" in block
     assert lines[0] == "ID: not-a-repo"
     git(directory, "init", "-b", "main")
     assert "not-a-repo" not in hint_ids(directory)
@@ -459,7 +459,7 @@ def test_no_commits(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert lines[0] == "Branch: main"
     block = found["no-commits"]
     assert "git status" in block and "git add" in block
-    assert "https://git-scm.com/docs/git-add" in block
+    assert "https://git-scm.com/docs/git-add#_description" in block
     assert "git commit" not in block
     ids = hint_ids(local)
     assert "no-commits" in ids
@@ -493,7 +493,7 @@ def test_no_commits(tmp_path_factory: pytest.TempPathFactory) -> None:
     _, found = all_blocks(local)
     block = found["no-commits"]
     assert 'git commit -m "Initial commit"' in block
-    assert "https://git-scm.com/docs/git-commit" in block
+    assert "https://git-scm.com/docs/git-commit#_description" in block
     ids = hint_ids(local)
     assert "no-commits" in ids and "staged-changes" in ids
     assert "detached-head" not in ids and "many-changed-files" not in ids
@@ -573,6 +573,14 @@ def test_no_commits(tmp_path_factory: pytest.TempPathFactory) -> None:
 # -----------------------
 OPERATIONS = ("merge", "rebase", "cherry-pick", "revert")
 
+# The documentation passage each operation's block links to.
+OPERATION_URLS = {
+    "merge": "https://git-scm.com/docs/git-merge#_description",
+    "rebase": "https://git-scm.com/docs/git-rebase#_description",
+    "cherry-pick": "https://git-scm.com/docs/git-cherry-pick#_description",
+    "revert": "https://git-scm.com/docs/git-revert#_sequencer_subcommands",
+}
+
 
 # Check the block for one operation: it names the operation, links to its
 # documentation, and shows only its continue and abort commands.
@@ -581,7 +589,7 @@ def check_operation_block(block: str, operation: str) -> None:
     assert f"A {operation} [1] is in progress" in text
     assert f"git {operation} --continue" in text
     assert f"Warning: git {operation} --abort" in text
-    assert f"https://git-scm.com/docs/git-{operation}" in text
+    assert OPERATION_URLS[operation] in text
     for other in OPERATIONS:
         if other != operation:
             assert f"git {other} --continue" not in text
@@ -761,7 +769,10 @@ def test_commit_identity(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "Priority: workflow" in block
     assert 'git config --global user.name "Your Name"' in block
     assert 'git config --global user.email "you@example.com"' in block
-    assert "https://git-scm.com/docs/git-config" in block
+    assert (
+        "https://git-scm.com/docs/git-config"
+        "#Documentation/git-config.txt-username" in block
+    )
 
     # Fixing only the name leaves the email missing.
     git(repo, "config", "--global", "user.name", "user1")

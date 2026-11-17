@@ -37,6 +37,14 @@ def committed_repo(repo: Path, names: list[str]) -> None:
 
 FOUR_FILES = ["one.txt", "two.txt", "three.txt", "four.txt"]
 
+# The links to reviewing and committing staged changes, which several hints
+# in this file show.
+DIFF_CACHED = (
+    "https://git-scm.com/docs/git-diff#Documentation/git-diff.txt"
+    "-gitdiffoptions--cached--merge-basecommit--path"
+)
+COMMIT = "https://git-scm.com/docs/git-commit#_description"
+
 
 # `unstaged-changes`
 # ------------------
@@ -77,8 +85,8 @@ def test_staged_and_unstaged_changes(
     staged = found["staged-changes"]
     assert "git diff --cached" in commands(staged)
     assert 'git commit -m "message"' in commands(staged)
-    assert "https://git-scm.com/docs/git-diff" in staged
-    assert "https://git-scm.com/docs/git-commit" in staged
+    assert DIFF_CACHED in staged
+    assert COMMIT in staged
 
     # Unstaged only.
     git(repo, "commit", "-m", "Append y.")
@@ -102,8 +110,8 @@ def test_staged_and_unstaged_changes(
     assert 'git commit -m "message"' in commands(staged)
     assert both != staged
     for block in (both, staged):
-        assert "https://git-scm.com/docs/git-diff" in block
-        assert "https://git-scm.com/docs/git-commit" in block
+        assert DIFF_CACHED in block
+        assert COMMIT in block
 
 
 def test_staged_and_unstaged_conflict_suppression(
@@ -154,8 +162,8 @@ def test_staged_changes(tmp_path_factory: pytest.TempPathFactory) -> None:
     staged = found["staged-changes"]
     assert "git diff --cached" in commands(staged)
     assert 'git commit -m "message"' in commands(staged)
-    assert "https://git-scm.com/docs/git-diff" in staged
-    assert "https://git-scm.com/docs/git-commit" in staged
+    assert DIFF_CACHED in staged
+    assert COMMIT in staged
     git(repo, "commit", "-m", "Add foo.")
     assert "staged-changes" not in hint_ids(repo)
 
@@ -190,8 +198,8 @@ def test_untracked_files(tmp_path_factory: pytest.TempPathFactory) -> None:
     _, found = all_blocks(repo)
     block = found["untracked-files"]
     assert "git add notes.txt" in commands(block)
-    assert "https://git-scm.com/docs/git-add" in block
-    assert "https://git-scm.com/docs/gitignore" in block
+    assert "https://git-scm.com/docs/git-add#_description" in block
+    assert "https://git-scm.com/docs/gitignore#_description" in block
 
     git(repo, "add", "notes.txt")
     assert "A  notes.txt" in git(repo, "status", "--porcelain=v1").stdout
@@ -213,7 +221,7 @@ def test_untracked_files(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert staged_paths(block) == []
     assert "Add the line .env to .gitignore" in commands(block)
     assert "Add the line __pycache__/ to .gitignore" in commands(block)
-    assert "https://git-scm.com/docs/gitignore" in block
+    assert "https://git-scm.com/docs/gitignore#_description" in block
 
     make_repo(
         repo,
@@ -355,7 +363,7 @@ def test_many_changed_files(tmp_path_factory: pytest.TempPathFactory) -> None:
     assert "Git stage: " in block
     assert 'git commit -m "Describe your changes"' in commands(block)
     assert "Result: " in block
-    assert "https://git-scm.com/docs/git-commit" in block
+    assert COMMIT in block
 
     git(repo, "add", "one.txt", "two.txt", "three.txt")
     git(repo, "commit", "-m", "Save tracked changes.")
@@ -504,8 +512,8 @@ def test_tracked_but_ignored(tmp_path_factory: pytest.TempPathFactory) -> None:
         "git diff --cached",
         "git commit",
         "earlier commits",
-        "https://git-scm.com/docs/git-rm",
-        "https://git-scm.com/docs/gitignore",
+        "https://git-scm.com/docs/git-rm#Documentation/git-rm.txt---cached",
+        "https://git-scm.com/docs/gitignore#_notes",
     ):
         assert phrase in block
     assert "tracked-but-ignored" in hint_ids(repo)
@@ -622,7 +630,7 @@ def test_changes_on_default_branch(
     block = found["changes-on-default-branch"]
     assert "Priority: workflow" in block
     assert "git switch -c" in block
-    assert "https://git-scm.com/docs/git-switch" in block
+    assert "https://git-scm.com/docs/git-switch#_description" in block
     assert "changes-on-default-branch" in hint_ids(local)
 
     git(local, "add", "foo.txt")

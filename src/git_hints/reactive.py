@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # ### Local
+from . import docs
 from .git import GitLaunchError, InspectionError, Repo, decode
 from .hint import (
     Command,
@@ -209,17 +210,19 @@ def pull_blocked_local_changes(failure: Failure) -> Hint | None:
     paths = [failure.display_path(path) for path in paths]
     text = (
         "The attempted [git pull]"
-        "(https://git-scm.com/docs/git-pull#_description "
-        '"Fetch and integrate changes into the current branch") was blocked '
-        "because incoming changes would overwrite uncommitted tracked "
-        "changes. Preserve your local work before retrying."
+        f"({docs.GIT_MERGE_PRE_MERGE_CHECKS.url} "
+        '"git pull and git merge stop without doing anything when local '
+        'uncommitted changes overlap with files they need to update") was '
+        "blocked because incoming changes would overwrite uncommitted "
+        "tracked changes. Preserve your local work before retrying."
     )
     if paths:
         text += f" Affected files: {summarize(paths)}."
     text += (
         " Default stashing excludes untracked files. See "
-        "[git stash](https://git-scm.com/docs/git-stash#_description "
-        '"Temporarily save working-directory and index changes").'
+        f"[git stash]({docs.GIT_STASH_EXAMPLES.url} "
+        '"When git pull refuses to overwrite local changes, stash them, '
+        'pull, and then restore them").'
     )
     add = (
         git_with_paths(["add"], paths[:5], separator=True)
@@ -335,7 +338,7 @@ def push_rejected_non_fast_forward(failure: Failure) -> Hint | None:
     refs = [f"{r['source']} -> {r['destination']}" for r in rejections]
     text = (
         "Git rejected the "
-        "[push](https://git-scm.com/docs/git-push#_note_about_fast_forwards "
+        f"[push]({docs.GIT_PUSH_NOTE_ABOUT_FAST_FORWARDS.url} "
         '"A non-fast-forward push would replace remote history") because the '
         "remote branch contains history missing from the branch being pushed. "
         f"Integrate that history before retrying. Rejected: {summarize(refs)}."
@@ -420,7 +423,7 @@ def stash_local_changes(failure: Failure) -> Hint | None:
     paths = [repo.display_path(path) for path in paths]
     affected = f" Affected files: {summarize(paths)}." if paths else ""
     stash_link = (
-        "[stash](https://git-scm.com/docs/git-stash#_description "
+        f"[stash]({docs.GIT_STASH_DESCRIPTION.url} "
         '"Save working-directory and index changes temporarily")'
     )
     status = Command("`git status`", "Git shows the changes.")
@@ -506,12 +509,12 @@ def rebase_after_repeated_integration_failures() -> Hint:
         text=(
             "After five qualifying failures to integrate with the upstream "
             "branch, replaying your local commits using "
-            "[git pull --rebase](https://git-scm.com/docs/git-pull "
+            f"[git pull --rebase]({docs.GIT_PULL_REBASE.url} "
             '"Fetch upstream changes and replay local commits on top of '
             'them") may resolve the problem. Rebasing changes local commit '
             "IDs and may cause conflicts. Make sure your local work is "
             "committed or otherwise backed up before attempting it. See the "
-            "[git rebase documentation](https://git-scm.com/docs/git-rebase "
+            f"[git rebase documentation]({docs.GIT_REBASE_DESCRIPTION.url} "
             '"Replay commits on another base and resolve rebase conflicts").'
         ),
         stage=(

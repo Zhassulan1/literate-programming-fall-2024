@@ -61,7 +61,10 @@ def test_merge_conflicts(tmp_path_factory: pytest.TempPathFactory) -> None:
         assert "Priority: error/blocked" in block
         assert "foo.txt" in block
         assert "git status" in block and "git add" in block
-        assert "https://git-scm.com/docs/git-merge" in block
+        assert (
+            "https://git-scm.com/docs/git-merge#_how_conflicts_are_presented"
+            in block
+        )
 
         ids = hint_ids(repo2)
         assert "merge-conflicts" in ids and "operation-in-progress" in ids
@@ -119,7 +122,8 @@ def test_pull_blocked_local_changes(
     block = blocks(result.stdout)["pull-blocked-local-changes"]
     assert "foo.txt" in block
     assert "Priority: error/blocked" in block
-    assert "https://git-scm.com/docs/git-pull" in block
+    assert "https://git-scm.com/docs/git-merge#_pre_merge_checks" in block
+    assert "https://git-scm.com/docs/git-stash#_examples" in block
     assert "git commit" in block and "git stash push" in block
     assert "stash-local-changes" not in output_ids(result.stdout)
     assert read(local / "foo.txt") == "local change"
@@ -190,7 +194,9 @@ def test_push_rejected_non_fast_forward(
     assert result.returncode == 1
     block = blocks(result.stdout)[PUSH_REJECTED]
     assert "Priority: error/blocked" in block
-    assert "https://git-scm.com/docs/git-push" in block
+    assert (
+        "https://git-scm.com/docs/git-push#_note_about_fast_forwards" in block
+    )
     assert "git fetch origin" in block
     assert "git merge origin/main" in block
     assert "git push --force" not in block
@@ -237,7 +243,7 @@ def test_stash_local_changes(tmp_path_factory: pytest.TempPathFactory) -> None:
     block = blocks(result.stdout)["stash-local-changes"]
     assert "Priority: error/blocked" in block
     assert "git stash push" in block and "git stash apply" in block
-    assert "https://git-scm.com/docs/git-stash" in block
+    assert "https://git-scm.com/docs/git-stash#_description" in block
     assert "pull-blocked-local-changes" not in output_ids(result.stdout)
 
     result = explain(repo, "switch", "topic")
@@ -370,8 +376,12 @@ def test_rebase_after_repeated_integration_failures(
     assert "Command: Caution: git pull --rebase" in block
     assert "Result: The local branch contains the upstream commits" in block
     assert "backed up" in block and "conflicts" in block
-    assert "https://git-scm.com/docs/git-pull" in block
-    assert "https://git-scm.com/docs/git-rebase" in block
+    assert (
+        "https://git-scm.com/docs/git-pull"
+        "#Documentation/git-pull.txt---rebasetruemergesfalseinteractive"
+        in block
+    )
+    assert "https://git-scm.com/docs/git-rebase#_description" in block
 
     assert REBASE_HINT not in rejected_push(local)
 
