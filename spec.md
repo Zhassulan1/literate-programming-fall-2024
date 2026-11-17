@@ -675,20 +675,20 @@ cc-hv2RyOfXis">Implementation of Branch has diverged from upstream</h4>
 
 * Conditions: The current branch has no upstream branch configured. Confirm that
   the repository is on a local branch, rather than in a detached HEAD state,
-  using `git symbolic-ref --quiet HEAD`. Confirm that the branch has at
-  least one commit: `git rev-parse --verify --quiet HEAD` must exit 0, because
-  pushing a branch with no commits fails with `src refspec <branch> does not
-  match any`. Check for an upstream using `git rev-parse --abbrev-ref
-  --symbolic-full-name "@{upstream}"`. When it fails, run `git config --get
-  branch.<name>.merge`: exit code 0 means that an upstream is configured but
-  maps to no remote-tracking branch, as in a single-branch clone or after the
-  remote branch was deleted. The hint must not be displayed then, because its
-  command would not make the upstream resolve in the first case and would
-  recreate a deleted remote branch in the second, which `unpushed-branches` also
-  avoids. Confirm that the `origin` remote exists using `git remote`. Suggest
-  configuring an upstream only when the current branch has no upstream
-  configured and `origin` exists. Do not display the hint in detached HEAD state
-  or on a branch with no commits.
+  using `git symbolic-ref --quiet HEAD`. Confirm that the branch has at least
+  one commit: `git rev-parse --verify --quiet HEAD` must exit 0, because pushing
+  a branch with no commits fails with `src refspec <branch> does not match any`.
+  Check for an upstream using `git rev-parse --abbrev-ref --symbolic-full-name
+  "@{upstream}"`, which exits 128 when the branch has no resolvable upstream.
+  When it exits 128, run `git config --get branch.<name>.merge`: exit code 0
+  means that an upstream is configured but maps to no remote-tracking branch, as
+  in a single-branch clone or after the remote branch was deleted. The hint must
+  not be displayed then, because its command would not make the upstream resolve
+  in the first case and would recreate a deleted remote branch in the second,
+  which `unpushed-branches` also avoids. Confirm that the `origin` remote exists
+  using `git remote`. Suggest configuring an upstream only when the current
+  branch has no upstream configured and `origin` exists. Do not display the hint
+  in detached HEAD state or on a branch with no commits.
 
 * Test case:
 
