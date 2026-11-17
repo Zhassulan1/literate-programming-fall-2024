@@ -763,12 +763,17 @@ def test_stash_entries(tmp_path_factory: pytest.TempPathFactory) -> None:
             ],
         )
     _, found = all_blocks(repo)
-    block = found["stash-entries"]
-    assert "6 entries" in block
+    # A Result line also names `stash@{0}`, so look at the hint text only.
+    (text,) = [
+        line
+        for line in found["stash-entries"].splitlines()
+        if line.startswith("This repository has ")
+    ]
+    assert "6 entries" in text
     for index in range(5):
-        assert f"stash@{{{index}}}" in block
-    assert "stash@{5}" not in block
-    assert "and 1 more" in block
+        assert f"stash@{{{index}}}" in text
+    assert "stash@{5}" not in text
+    assert "and 1 more" in text
 
     make_repo(
         repo,
