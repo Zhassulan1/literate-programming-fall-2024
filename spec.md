@@ -2532,7 +2532,11 @@ explain` returns Git's exit code, except for the usage errors of CLI commands,
 which exit 2, and for the failures of the next paragraph. When Git is ended by
 signal N, which `subprocess` reports as `returncode` -N, Git's exit code is
 128 + N, as in a POSIX shell, both in `Git exited with code <n>.` and as the
-exit code of `git-hints explain`.
+exit code of `git-hints explain`. While the supplied command runs, `git-hints
+explain` must ignore the interrupt and quit signals, such as `SIGINT` from
+Ctrl+C, which the terminal also sends to Git, so that Git alone decides how
+the command ends and its exit code and captured standard error are still
+reported.
 
 Report an unexpected inspection failure and a failure to launch Git on
 standard error as a message starting with `git-hints: `, and exit with code 1;
@@ -2912,7 +2916,11 @@ Test case for the failure reporting of Language and libraries, in
    explain -- git -c 'alias.die=!kill -TERM $PPID' die`, whose shell alias ends
    the Git process that runs it with `SIGTERM`. Verify that it exits with code
    143 and that its standard output contains the line `Git exited with code
-   143.`
+   143.` Run `git-hints explain -- git -c 'alias.int=!echo stopped >&2; kill
+   -INT 0' int` in a new session (`start_new_session=True`), so that its shell
+   alias sends `SIGINT` to Git and `git-hints`, as Ctrl+C does. Verify that it
+   exits with code 130, that its standard output contains the line `Git exited
+   with code 130.`, and that its standard error contains `stopped`.
 7. Create a repository with one commit and run `git config
    core.repositoryformatversion 2`. Verify that `git rev-parse
    --is-inside-work-tree` exits with code 128 and that its standard error does

@@ -6,6 +6,7 @@
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -336,6 +337,31 @@ def test_failure_reporting(tmp_path_factory: pytest.TempPathFactory) -> None:
         )
         assert result.returncode == 143
         assert "Git exited with code 143." in result.stdout.splitlines()
+
+        # In a session of its own, `kill -INT 0` reaches Git and `git-hints`
+        # as Ctrl+C would, but not the test runner.
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "git_hints",
+                "explain",
+                "--",
+                "git",
+                "-c",
+                "alias.int=!echo stopped >&2; kill -INT 0",
+                "int",
+            ],
+            cwd=pusher,
+            check=False,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            start_new_session=True,
+        )
+        assert result.returncode == 130
+        assert "Git exited with code 130." in result.stdout.splitlines()
+        assert "stopped" in result.stderr
 
     # A failed repository context command is not `not-a-repo`; nothing is
     # printed on standard output.

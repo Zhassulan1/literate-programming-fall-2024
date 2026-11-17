@@ -23,6 +23,7 @@ import contextlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -652,6 +653,23 @@ def emit_stderr(data: bytes) -> None:
         buffer.flush()
 
 
+# Wait for Git and return its captured standard error. The terminal sends the
+# interrupt and quit signals of Ctrl+C and Ctrl+\ to Git and to `git-hints`
+# alike; ignore them while waiting, as a shell does, so that Git decides how to
+# end and its exit code and standard error are still reported. Git was started
+# before this, so it keeps the usual handling of these signals.
+def wait_for_git(process: subprocess.Popen[bytes]) -> bytes:
+    names = ("SIGINT", "SIGQUIT")
+    signums = [getattr(signal, name) for name in names if hasattr(signal, name)]
+    previous = [signal.signal(signum, signal.SIG_IGN) for signum in signums]
+    try:
+        _, captured = process.communicate()
+    finally:
+        for signum, handler in zip(signums, previous, strict=True):
+            signal.signal(signum, handler)
+    return captured
+
+
 # Run a Git command, then explain its failure. Return Git's exit code, or 1
 # when Git can't be launched or inspection fails unexpectedly.
 def explain(
@@ -662,19 +680,19 @@ def explain(
 ) -> int:
     command = parse_command(argv)
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             list(argv),
             stdout=subprocess.DEVNULL if ids_only else None,
             stderr=subprocess.PIPE,
             shell=False,
-            check=False,
         )
     except OSError as error:
         print(f"git-hints: Could not launch Git: {error}", file=sys.stderr)
         return 1
-    emit_stderr(completed.stderr)
-    stderr = decode(completed.stderr)
-    returncode = completed.returncode
+    captured = wait_for_git(process)
+    emit_stderr(captured)
+    stderr = decode(captured)
+    returncode = process.returncode
     # A negative code means that signal ended Git; report it as a shell does.
     if returncode < 0:
         returncode = 128 - returncode
