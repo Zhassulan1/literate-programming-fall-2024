@@ -17,7 +17,7 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 # ### Third-party
@@ -164,10 +164,15 @@ def commit_file(repo: Path, name: str, text: str, message: str) -> None:
 #
 # Run `git-hints` in its own process, with the repository under test as the
 # current directory.
-def run_hints(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def run_hints(
+    cwd: Path,
+    *args: str,
+    env: Mapping[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-m", "git_hints", *args],
         cwd=cwd,
+        env=env,
         shell=False,
         check=False,
         capture_output=True,

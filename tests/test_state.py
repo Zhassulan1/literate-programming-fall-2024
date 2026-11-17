@@ -3,6 +3,8 @@
 #
 # Each test follows the test case of the same name in the specification;
 # tests without one cover requirements stated elsewhere in it.
+import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -37,6 +39,23 @@ def current_branch(repo: Path) -> subprocess.CompletedProcess[str]:
     return git(repo, "symbolic-ref", "--quiet", "--short", "HEAD", check=False)
 
 
+def trace_environments(path: Path) -> list[tuple[list[str], dict[str, str]]]:
+    events = [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+    ]
+    processes: dict[str, tuple[list[str], dict[str, str]]] = {}
+    for event in events:
+        sid = event.get("sid")
+        if not sid:
+            continue
+        if event.get("event") == "start":
+            processes[sid] = (event["argv"], {})
+        elif event.get("event") == "def_param" and sid in processes:
+            processes[sid][1][event["param"]] = event["value"]
+    return list(processes.values())
+
+
 # Location
 # --------
 def test_not_a_repo(tmp_path_factory: pytest.TempPathFactory) -> None:
@@ -66,6 +85,88 @@ def test_not_inside_work_tree(tmp_path_factory: pytest.TempPathFactory) -> None:
         result = run_hints(directory, "--all", "--ids-only")
         assert result.returncode == 0
         assert result.stdout == ""
+
+
+def test_inspection_environment(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    repo, remote = make_temps(tmp_path_factory, 2)
+    trace_dir = tmp_path_factory.mktemp("trace")
+    config_user("user1", "user1@example.com")
+    make_repo(remote, [["git", "init", "--bare", "-b", "main"]])
+    git(repo.parent, "clone", str(remote), str(repo))
+    make_repo(
+        repo,
+        [
+            write(repo / "foo.txt", "base"),
+            ["git", "add", "foo.txt"],
+            ["git", "commit", "-m", "Add foo."],
+            ["git", "push", "-u", "origin", "main"],
+        ],
+    )
+
+    trace = trace_dir / "inspection.json"
+    env = dict(os.environ)
+    env.update(
+        GIT_TRACE2_EVENT=str(trace),
+        GIT_TRACE2_ENV_VARS="GIT_OPTIONAL_LOCKS,LC_ALL",
+        LC_ALL="C.UTF-8",
+    )
+    result = run_hints(repo, "--all", env=env)
+    assert result.returncode == 0, result.stderr
+    processes = trace_environments(trace)
+    assert processes
+    for _, values in processes:
+        assert values == {"GIT_OPTIONAL_LOCKS": "0", "LC_ALL": "C"}
+
+    explain_trace = trace_dir / "explain.json"
+    env["GIT_TRACE2_EVENT"] = str(explain_trace)
+    result = run_hints(
+        repo,
+        "explain",
+        "--",
+        "git",
+        "status",
+        "--short",
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    processes = trace_environments(explain_trace)
+    explained = [
+        values
+        for args, values in processes
+        if args[-2:] == ["status", "--short"]
+    ]
+    inspected = [
+        values
+        for args, values in processes
+        if args[-2:] != ["status", "--short"]
+    ]
+    assert explained == [{"LC_ALL": "C.UTF-8"}]
+    assert inspected
+    for values in inspected:
+        assert values == {"GIT_OPTIONAL_LOCKS": "0", "LC_ALL": "C"}
+
+    old = (repo / "foo.txt").stat().st_mtime - 3600
+    os.utime(repo / "foo.txt", (old, old))
+    (index_lock,) = git_paths(repo, "index.lock")
+    index_lock.write_bytes(b"")
+    try:
+        result = run_hints(repo, "--all")
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.splitlines()[0] == "Branch: main"
+        assert not any(
+            line.startswith("git-hints:") for line in result.stderr.splitlines()
+        )
+        assert index_lock.read_bytes() == b""
+    finally:
+        index_lock.unlink(missing_ok=True)
+
+    write(repo / "bar.txt", "next")()
+    git(repo, "add", "bar.txt")
+    git(repo, "commit", "-m", "Add bar.")
+    git(repo, "tag", "main")
+    assert "push-ahead" in hint_ids(repo)
 
 
 # `detached-head`

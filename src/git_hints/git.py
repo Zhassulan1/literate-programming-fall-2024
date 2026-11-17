@@ -78,8 +78,8 @@ def decode(data: bytes) -> str:
 # The environment for inspection commands.
 #
 # * `GIT_OPTIONAL_LOCKS=0` keeps `git status` from refreshing and rewriting
-#   the index, so inspection never contends for `index.lock` with a Git
-#   command the user is running.
+#   the index. Commands such as `git diff` may still refresh cached stat data
+#   and briefly contend for `index.lock`.
 # * `LC_ALL=C` keeps the few diagnostics that inspection matches (such as
 #   "not a git repository") in English.
 def inspection_env() -> dict[str, str]:
@@ -298,10 +298,8 @@ class Repo:
     # unborn branch (one with no commits) still has a name.
     @cached_property
     def current_branch(self) -> str | None:
-        result = self.check(
-            "symbolic-ref", "--quiet", "--short", "HEAD", ok=(0, 1)
-        )
-        return result.stdout.strip() if result.returncode == 0 else None
+        result = self.check("branch", "--show-current")
+        return result.stdout.strip() or None
 
     # The commit ID at HEAD, or `None` when HEAD doesn't resolve (for example,
     # on a branch with no commits).
